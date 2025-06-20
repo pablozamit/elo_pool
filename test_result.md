@@ -107,15 +107,18 @@ user_problem_statement: "Crear una app para club de billar que permita crear usu
 backend:
   - task: "User Authentication System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented JWT authentication with register/login endpoints, password hashing"
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested user registration, login, and token authentication. All endpoints (/api/register, /api/login, /api/me) are working correctly."
 
   - task: "Match Submission System"
     implemented: true
