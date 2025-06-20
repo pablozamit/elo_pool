@@ -1,6 +1,8 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, Suspense } from 'react'; // Added Suspense for local fallbacks if needed
 import './App.css';
 import axios from 'axios';
+import LanguageSwitcher from './LanguageSwitcher'; // Import LanguageSwitcher
+import { useTranslation } from 'react-i18next'; // Import useTranslation
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -81,6 +83,7 @@ const useAuth = () => {
 
 // Components
 const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
+  const { t } = useTranslation(); // Initialize useTranslation
   const [isLoginMode, setIsLoginMode] = useState(initialMode === 'login');
   const [formData, setFormData] = useState({
     username: '',
@@ -138,9 +141,9 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
     <div className="min-h-screen bg-gradient-to-br from-green-800 to-green-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">🎱 Club de Billar</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">🎱 {t('billiardClub')}</h1>
           <p className="text-gray-600">
-            {isLoginMode ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta de jugador'}
+            {isLoginMode ? t('loginTitle') : t('registerTitle')} {/* Assuming new keys for these titles */}
           </p>
         </div>
 
@@ -158,7 +161,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre de usuario
+              {t('usernameLabel')}
             </label>
             <input
               type="text"
@@ -173,7 +176,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contraseña
+              {t('passwordLabel')}
             </label>
             <input
               type="password"
@@ -189,7 +192,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
             disabled={formLoading}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-200 disabled:opacity-50"
           >
-            {formLoading ? 'Procesando...' : (isLoginMode ? 'Iniciar Sesión' : 'Registrarse')}
+            {formLoading ? t('loading') : (isLoginMode ? t('login') : t('register'))}
           </button>
         </form>
 
@@ -198,7 +201,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
             onClick={handleSwitchMode}
             className="text-green-600 hover:text-green-800 font-medium"
           >
-            {isLoginMode ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+            {isLoginMode ? <>{t('noAccount')} {t('register')}</> : <>{t('alreadyAccount')} {t('login')}</>}
           </button>
         </div>
       </div>
@@ -213,6 +216,7 @@ const Dashboard = () => {
   const [pendingMatches, setPendingMatches] = useState([]);
   // const [dashboardLoading, setDashboardLoading] = useState(false); // Optional: for content loading indication
   const { user, token, logout } = useAuth();
+  const { t } = useTranslation(); // Initialize useTranslation for Dashboard
 
   const [showLoginView, setShowLoginView] = useState(false);
   const [loginViewMode, setLoginViewMode] = useState('login'); // 'login' or 'register'
@@ -357,39 +361,42 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">🎱 Club de Billar</h1>
+              <h1 className="text-2xl font-bold text-gray-900">🎱 {t('billiardClub')}</h1>
               {user && (
                 <div className="hidden sm:block text-sm text-gray-500">
-                  Hola, {user.username} - ELO: {user.elo_rating?.toFixed(1)}
+                  {t('helloUser', { username: user.username })} - {t('eloRating')}: {user.elo_rating?.toFixed(1)}
                   {user.is_admin && (
-                    <span className="ml-2 text-sm font-semibold text-purple-600">(Admin)</span>
+                    <span className="ml-2 text-sm font-semibold text-purple-600">({t('admin')})</span>
                   )}
                 </div>
               )}
             </div>
-            {user ? (
-              <button
-                onClick={logout}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Cerrar Sesión
-              </button>
-            ) : (
-              <div className="space-x-2">
+            <div className="flex items-center space-x-4"> {/* Group for right-side items */}
+              <LanguageSwitcher />
+              {user ? (
                 <button
-                  onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  onClick={logout}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
                 >
-                  Iniciar Sesión
+                  {t('logout')}
                 </button>
-                <button
-                  onClick={() => { setShowLoginView(true); setLoginViewMode('register'); }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                >
-                  Registrarse
-                </button>
-              </div>
-            )}
+              ) : (
+                <div className="space-x-2"> {/* This div is for login/register buttons when no user */}
+                  <button
+                    onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    {t('login')}
+                  </button>
+                  <button
+                    onClick={() => { setShowLoginView(true); setLoginViewMode('register'); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    {t('register')}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -397,18 +404,18 @@ const Dashboard = () => {
       {/* Navigation & Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-wrap gap-2 mb-6">
-          <TabButton tab="rankings" label="Rankings" icon="🏆" />
-          <TabButton tab="submit" label="Subir Resultado" icon="📝" disabled={!user} />
+          <TabButton tab="rankings" label={t('rankings')} icon="🏆" />
+          <TabButton tab="submit" label={t('submitResult')} icon="📝" disabled={!user} />
           <TabButton
             tab="pending"
-            label={`Pendientes ${user && pendingMatches.length > 0 ? `(${pendingMatches.length})` : ''}`}
+            label={`${t('pendingMatches')} ${user && pendingMatches.length > 0 ? `(${pendingMatches.length})` : ''}`}
             icon="⏳"
             disabled={!user}
           />
-          <TabButton tab="history" label="Historial" icon="📊" disabled={!user} />
+          <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
         </div>
 
-        {/* {dashboardLoading && <div className="text-center p-4">Cargando contenido...</div>} */}
+        {/* {dashboardLoading && <div className="text-center p-4">{t('loading')}</div>} */}
 
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'rankings' && (
@@ -439,7 +446,7 @@ const Dashboard = () => {
                 onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
                 className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
               >
-                Iniciar Sesión
+                {t('login')}
               </button>
             </div>
           )}
@@ -492,6 +499,11 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // State for opponent autocomplete
+  const [opponentSuggestions, setOpponentSuggestions] = useState([]);
+  const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
+  const [debounceTimeout, setDebounceTimeout] = useState(null);
+
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
     liga_grupos: 'Liga - Ronda de Grupos',
@@ -523,6 +535,47 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
     setLoading(false);
   };
 
+  // Effect for debouncing opponent search
+  useEffect(() => {
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+
+    if (formData.opponent_username.length >= 2) {
+      setIsSearchingOpponent(true);
+      const timeoutId = setTimeout(async () => {
+        try {
+          const response = await axios.get(`${API}/users/search?query=${formData.opponent_username}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setOpponentSuggestions(response.data);
+        } catch (err) {
+          console.error('Error fetching opponent suggestions:', err);
+          setOpponentSuggestions([]);
+        } finally {
+          setIsSearchingOpponent(false);
+        }
+      }, 500); // 500ms debounce
+      setDebounceTimeout(timeoutId);
+    } else {
+      setOpponentSuggestions([]);
+      setIsSearchingOpponent(false);
+    }
+
+    // Cleanup timeout on unmount or when formData.opponent_username changes
+    return () => {
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+    };
+  }, [formData.opponent_username, token]);
+
+
+  const handleSuggestionClick = (suggestion) => {
+    setFormData({...formData, opponent_username: suggestion.username});
+    setOpponentSuggestions([]);
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">📝 Subir Resultado</h2>
@@ -540,7 +593,7 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-        <div>
+        <div className="relative"> {/* Added relative positioning here */}
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Oponente
           </label>
@@ -549,10 +602,30 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
             value={formData.opponent_username}
-            onChange={(e) => setFormData({...formData, opponent_username: e.target.value})}
+            onChange={(e) => {
+              setFormData({...formData, opponent_username: e.target.value});
+              // Suggestions will be fetched by useEffect
+            }}
             placeholder="Nombre de usuario del oponente"
+            autoComplete="off" // Disable browser's own autocomplete
           />
+          {isSearchingOpponent && <p className="text-xs text-gray-500 mt-1">Buscando...</p>}
+          {opponentSuggestions.length > 0 && (
+            <ul className="border border-gray-300 rounded-md mt-1 max-h-40 overflow-y-auto bg-white absolute z-10 w-full shadow-lg">
+              {opponentSuggestions.map((suggestion) => (
+                <li
+                  key={suggestion.username} // Assuming username is unique for key
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  {suggestion.username} ({suggestion.elo_rating?.toFixed(0)})
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
+
+        {/* Removed the extra relative div, as the one above now wraps the input and suggestions */}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -731,13 +804,14 @@ function App() {
 
 const AppContent = () => {
   const { loading: authLoading } = useAuth(); // Renamed to avoid conflict
+  const { t } = useTranslation(); // Initialize useTranslation for AppContent
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p>Cargando Club...</p> {/* Changed text slightly */}
+          <p>{t('loading')}</p> {/* Changed text slightly & translated */}
         </div>
       </div>
     );
