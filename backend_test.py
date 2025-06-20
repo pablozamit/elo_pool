@@ -569,3 +569,19 @@ class BilliardsClubTester:
             print(f"Expected order: {expected_order}")
             print(f"Actual order: {actual_order}")
             return False
+if __name__ == "__main__":
+    tester = BilliardsClubTester()
+    # Test specifically the ELO weights
+    print("\n\n")
+    print("="*100)
+    print("TESTING ELO WEIGHTS SPECIFICALLY")
+    print("="*100)
+    elo_weights_correct = tester.test_elo_weights()
+    
+    # Final summary
+    print("\n\n")
+    print("="*100)
+    print("FINAL TEST SUMMARY")
+    print("="*100)
+    print(f"ELO Weights Test: {'✅ PASSED' if elo_weights_correct else '❌ FAILED'}")
+    print("="*100)
