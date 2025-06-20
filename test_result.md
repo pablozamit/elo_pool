@@ -152,11 +152,11 @@ backend:
 
   - task: "ELO Rating Algorithm"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -167,6 +167,9 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "CORRECTED ELO weights based on user feedback: Rey Mesa (1.0), Torneo (1.5), Liga Grupos (2.0), Liga Finales (2.5)"
+      - working: true
+        agent: "testing"
+        comment: "Successfully verified the corrected ELO weights. Created a specific test that confirms the weights are properly ordered: Rey Mesa (1.0) < Torneo (1.5) < Liga Grupos (2.0) < Liga Finales (2.5). The ELO changes reflect the correct weight ordering."
 
   - task: "Rankings System"
     implemented: true
