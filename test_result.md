@@ -296,3 +296,5 @@ agent_communication:
     message: "Implemented complete billiards club app with user auth, match submission/confirmation, ELO algorithm with different weights per match type, rankings, and history. Ready for backend testing of all core functionalities."
   - agent: "testing"
     message: "Completed comprehensive testing of all backend functionality. Created backend_test.py to test the complete workflow including user registration, login, match submission, confirmation, ELO calculation, and rankings. All backend tasks are working correctly with no issues found."
+  - agent: "testing"
+    message: "Successfully tested the corrected ELO weights. Created a specific test function that confirms matches with all 4 match types and verifies the ELO changes reflect the correct weight ordering: Rey Mesa (1.0) < Torneo (1.5) < Liga Grupos (2.0) < Liga Finales (2.5). All tests passed successfully."
