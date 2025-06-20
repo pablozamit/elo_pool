@@ -6,7 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timedelta
@@ -57,12 +57,20 @@ class User(BaseModel):
     elo_rating: float = 1200.0
     matches_played: int = 0
     matches_won: int = 0
+    is_admin: bool = False
+    is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+
+    @validator('username')
+    def username_must_not_contain_spaces(cls, v):
+        if ' ' in v:
+            raise ValueError('Username cannot contain spaces')
+        return v
 
 class UserLogin(BaseModel):
     username: str
@@ -75,7 +83,20 @@ class UserResponse(BaseModel):
     elo_rating: float
     matches_played: int
     matches_won: int
+    is_admin: bool
+    is_active: bool
     created_at: datetime
+
+class UserAdminCreate(UserCreate):
+    is_admin: Optional[bool] = False
+    is_active: Optional[bool] = True
+
+class UserUpdateAdmin(BaseModel):
+    email: Optional[str] = None
+    elo_rating: Optional[float] = None
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+    # password: Optional[str] = None # Add if password change is desired
 
 class Match(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -144,6 +165,43 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=404, detail="User not found")
     return User(**user)
 
+async def get_current_admin_user(current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden: User is not an admin")
+    return current_user
+
+async def get_optional_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security, use_cache=False)):
+    if credentials is None:
+        return None
+    try:
+        token = credentials.credentials
+        # We need a version of verify_jwt_token that doesn't raise HTTPException
+        # For now, we'll wrap the existing one and catch its specific HTTPExceptions
+        try:
+            payload = verify_jwt_token(token)
+        except HTTPException as http_exc: # Catch exceptions from verify_jwt_token
+            # Log the error for debugging, but don't re-raise
+            # logger.info(f"JWT verification failed for optional user: {http_exc.detail}")
+            return None
+
+        user_doc = await db.users.find_one({"id": payload["user_id"]})
+        if not user_doc:
+            return None
+
+        # Ensure user is active
+        if not user_doc.get("is_active", True): # Default to True if field is missing for older docs
+            # logger.info(f"Optional user found but is inactive: {payload['user_id']}")
+            return None
+
+        return User(**user_doc)
+    except jwt.ExpiredSignatureError: # This is already handled by verify_jwt_token's HTTPException
+        return None
+    except jwt.JWTError: # This is also handled by verify_jwt_token's HTTPException
+        return None
+    except Exception:
+        # logger.error("Unexpected error in get_optional_current_user", exc_info=True)
+        return None
+
 def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchType) -> tuple:
     """Calculate ELO change for both players"""
     K = 32 * ELO_WEIGHTS[match_type]  # K-factor adjusted by match type weight
@@ -161,10 +219,15 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
 # Routes
 @api_router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate):
-    # Check if user already exists
-    existing_user = await db.users.find_one({"$or": [{"username": user_data.username}, {"email": user_data.email}]})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username or email already exists")
+    # Check if username already exists
+    existing_user_by_username = await db.users.find_one({"username": user_data.username})
+    if existing_user_by_username:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    # Check if email already exists
+    existing_user_by_email = await db.users.find_one({"email": user_data.email})
+    if existing_user_by_email:
+        raise HTTPException(status_code=400, detail="Email already exists")
     
     # Create new user
     user = User(
@@ -343,7 +406,9 @@ async def reject_match(match_id: str, current_user: User = Depends(get_current_u
 
 @api_router.get("/rankings")
 async def get_rankings():
-    users = await db.users.find({}).sort("elo_rating", -1).to_list(100)
+    users = await db.users.find(
+        {"is_admin": {"$ne": True}}
+    ).sort("elo_rating", -1).to_list(100)
     
     rankings = []
     for i, user in enumerate(users):
@@ -393,6 +458,75 @@ async def search_users(query: str, current_user: User = Depends(get_current_user
     
     return [{"username": user["username"], "elo_rating": user["elo_rating"]} for user in users]
 
+# Admin Endpoints
+@api_router.post("/admin/users", response_model=UserResponse, tags=["Admin"])
+async def admin_create_user(user_data: UserAdminCreate, admin_user: User = Depends(get_current_admin_user)):
+    # Check if username already exists
+    existing_user_by_username = await db.users.find_one({"username": user_data.username})
+    if existing_user_by_username:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    # Check if email already exists
+    existing_user_by_email = await db.users.find_one({"email": user_data.email})
+    if existing_user_by_email:
+        raise HTTPException(status_code=400, detail="Email already exists")
+
+    user_dict = user_data.dict()
+    user_dict["password_hash"] = hash_password(user_data.password)
+    del user_dict["password"]  # Remove plain password
+
+    # Ensure is_admin and is_active are set from UserAdminCreate
+    new_user = User(
+        **user_dict
+    )
+
+    await db.users.insert_one(new_user.dict())
+    return UserResponse(**new_user.dict())
+
+@api_router.get("/admin/users", response_model=List[UserResponse], tags=["Admin"])
+async def admin_get_all_users(admin_user: User = Depends(get_current_admin_user)):
+    users_cursor = db.users.find({})
+    users_list = await users_cursor.to_list(length=None) # Get all users
+    return [UserResponse(**user) for user in users_list]
+
+@api_router.put("/admin/users/{user_id}", response_model=UserResponse, tags=["Admin"])
+async def admin_update_user(user_id: str, user_update_data: UserUpdateAdmin, admin_user: User = Depends(get_current_admin_user)):
+    existing_user = await db.users.find_one({"id": user_id})
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    update_data = user_update_data.dict(exclude_unset=True)
+
+    # # If password is part of UserUpdateAdmin and provided, hash it
+    # if "password" in update_data and update_data["password"]:
+    #     update_data["password_hash"] = hash_password(update_data["password"])
+    #     del update_data["password"]
+    # elif "password" in update_data: # if password field exists but is None/empty
+    #     del update_data["password"]
+
+    if update_data:
+        await db.users.update_one({"id": user_id}, {"$set": update_data})
+
+    updated_user_doc = await db.users.find_one({"id": user_id})
+    return UserResponse(**updated_user_doc)
+
+@api_router.delete("/admin/users/{user_id}", response_model=Dict[str, str], tags=["Admin"])
+async def admin_delete_user(user_id: str, admin_user: User = Depends(get_current_admin_user)):
+    existing_user = await db.users.find_one({"id": user_id})
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent admin from deleting themselves? (Optional check)
+    # if existing_user["id"] == admin_user.id:
+    #     raise HTTPException(status_code=400, detail="Admin users cannot delete themselves.")
+
+    delete_result = await db.users.delete_one({"id": user_id})
+    if delete_result.deleted_count == 1:
+        return {"message": "User deleted successfully"}
+
+    raise HTTPException(status_code=500, detail="Failed to delete user")
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
@@ -410,6 +544,27 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def create_admin_on_startup():
+    admin_user_exists = await db.users.find_one({"username": "admin"})
+    if not admin_user_exists:
+        admin_user = User(
+            id=str(uuid.uuid4()),
+            username="admin",
+            email="admin@example.com",
+            password_hash=hash_password("adminpassword"),
+            is_admin=True,
+            is_active=True,
+            elo_rating=1200.0,
+            matches_played=0,
+            matches_won=0,
+            created_at=datetime.utcnow()
+        )
+        await db.users.insert_one(admin_user.dict())
+        print("Default admin user 'admin' created with password 'adminpassword'.")
+    else:
+        print("Admin user 'admin' already exists. No action taken.")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

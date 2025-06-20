@@ -14,21 +14,23 @@ const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      // Verify token and get user info
-      axios.get(`${API}/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      }).then(response => {
-        setUser(response.data);
-        setLoading(false);
-      }).catch(() => {
-        localStorage.removeItem('token');
-        setToken(null);
-        setLoading(false);
-      });
-    } else {
+    const verifyToken = async () => {
+      if (token) {
+        try {
+          const response = await axios.get(`${API}/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setUser(response.data);
+        } catch (error) {
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null); // Explicitly set user to null on error
+          console.error("Token verification failed:", error);
+        }
+      }
       setLoading(false);
-    }
+    };
+    verifyToken();
   }, [token]);
 
   const login = async (username, password) => {
@@ -46,8 +48,10 @@ const AuthProvider = ({ children }) => {
 
   const register = async (username, email, password) => {
     try {
-      const response = await axios.post(`${API}/register`, { username, email, password });
-      return { success: true, user: response.data };
+      // Assuming backend returns the newly created user on successful registration,
+      // but we will prompt them to login manually.
+      await axios.post(`${API}/register`, { username, email, password });
+      return { success: true, message: "¡Registro exitoso! Por favor, inicia sesión." };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Error de registro' };
     }
@@ -60,7 +64,8 @@ const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    // Pass setToken and setUser if needed by any component directly, though unlikely for this app structure
+    <AuthContext.Provider value={{ user, token, login, register, logout, loading, setToken, setUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -75,38 +80,58 @@ const useAuth = () => {
 };
 
 // Components
-const LoginForm = () => {
-  const [isLogin, setIsLogin] = useState(true);
+const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
+  const [isLoginMode, setIsLoginMode] = useState(initialMode === 'login');
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: ''
   });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, register } = useAuth();
+  const [message, setMessage] = useState('');
+  const [formLoading, setFormLoading] = useState(false);
+  const { login, register: authRegister } = useAuth(); // Renamed register to authRegister
+
+  useEffect(() => {
+    setIsLoginMode(initialMode === 'login');
+    setError(''); // Clear error/message when mode changes via prop
+    setMessage('');
+  }, [initialMode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setFormLoading(true);
     setError('');
+    setMessage('');
 
-    if (isLogin) {
+    if (isLoginMode) {
       const result = await login(formData.username, formData.password);
       if (!result.success) {
         setError(result.error);
+      } else {
+        if (onLoginSuccess) onLoginSuccess();
+        // AuthProvider handles user state, Dashboard useEffect will hide this form.
       }
-    } else {
-      const result = await register(formData.username, formData.email, formData.password);
+    } else { // Register mode
+      const result = await authRegister(formData.username, formData.email, formData.password);
       if (result.success) {
-        setIsLogin(true);
-        setError('');
-        setFormData({ username: '', email: '', password: '' });
+        setIsLoginMode(true); // Switch to login view
+        setFormData({ username: '', email: '', password: '' }); // Clear form
+        setMessage(result.message || '¡Registro exitoso! Por favor, inicia sesión.');
+        if (onSwitchMode) onSwitchMode('login'); // Inform parent
       } else {
         setError(result.error);
       }
     }
-    setLoading(false);
+    setFormLoading(false);
+  };
+
+  const handleSwitchMode = () => {
+    setIsLoginMode(!isLoginMode);
+    setError('');
+    setMessage('');
+    setFormData({ username: '', email: '', password: '' }); // Clear form on mode switch
+    if (onSwitchMode) onSwitchMode(!isLoginMode ? 'register' : 'login');
   };
 
   return (
@@ -115,13 +140,18 @@ const LoginForm = () => {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">🎱 Club de Billar</h1>
           <p className="text-gray-600">
-            {isLogin ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta de jugador'}
+            {isLoginMode ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta de jugador'}
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">
             {error}
+          </div>
+        )}
+        {message && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 text-sm">
+            {message}
           </div>
         )}
 
@@ -139,7 +169,7 @@ const LoginForm = () => {
             />
           </div>
 
-          {!isLogin && (
+          {!isLoginMode && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email
@@ -169,19 +199,19 @@ const LoginForm = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={formLoading}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-200 disabled:opacity-50"
           >
-            {loading ? 'Procesando...' : (isLogin ? 'Iniciar Sesión' : 'Registrarse')}
+            {formLoading ? 'Procesando...' : (isLoginMode ? 'Iniciar Sesión' : 'Registrarse')}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={handleSwitchMode}
             className="text-green-600 hover:text-green-800 font-medium"
           >
-            {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+            {isLoginMode ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
           </button>
         </div>
       </div>
@@ -194,19 +224,29 @@ const Dashboard = () => {
   const [rankings, setRankings] = useState([]);
   const [matches, setMatches] = useState([]);
   const [pendingMatches, setPendingMatches] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // const [dashboardLoading, setDashboardLoading] = useState(false); // Optional: for content loading indication
   const { user, token, logout } = useAuth();
 
+  const [showLoginView, setShowLoginView] = useState(false);
+  const [loginViewMode, setLoginViewMode] = useState('login'); // 'login' or 'register'
+
+  // Fetch rankings - always available
   const fetchRankings = async () => {
+    // setDashboardLoading(true);
     try {
       const response = await axios.get(`${API}/rankings`);
       setRankings(response.data);
     } catch (error) {
       console.error('Error fetching rankings:', error);
+      setRankings([]); // Clear on error
     }
+    // setDashboardLoading(false);
   };
 
+  // Fetch user-specific matches
   const fetchMatches = async () => {
+    if (!token) return;
+    // setDashboardLoading(true);
     try {
       const response = await axios.get(`${API}/matches/history`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -214,10 +254,15 @@ const Dashboard = () => {
       setMatches(response.data);
     } catch (error) {
       console.error('Error fetching matches:', error);
+      setMatches([]);
     }
+    // setDashboardLoading(false);
   };
 
+  // Fetch user-specific pending matches
   const fetchPendingMatches = async () => {
+    if (!token) return;
+    // setDashboardLoading(true);
     try {
       const response = await axios.get(`${API}/matches/pending`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -225,52 +270,98 @@ const Dashboard = () => {
       setPendingMatches(response.data);
     } catch (error) {
       console.error('Error fetching pending matches:', error);
+      setPendingMatches([]);
     }
+    // setDashboardLoading(false);
   };
 
   useEffect(() => {
-    fetchRankings();
-    fetchMatches();
-    fetchPendingMatches();
-  }, []);
+    fetchRankings(); // Fetch rankings on initial load & user change
+    if (user && token) {
+      setShowLoginView(false); // Hide login form if user is now present
+      fetchMatches();
+      fetchPendingMatches();
+      // If user just logged in and was on a disabled tab, switch to rankings
+      if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history')) {
+        setActiveTab('rankings');
+      }
+    } else {
+      // User is null, clear sensitive data
+      setMatches([]);
+      setPendingMatches([]);
+      // If an authenticated tab was active, switch to rankings
+      if (activeTab !== 'rankings') {
+          setActiveTab('rankings');
+      }
+    }
+  }, [user, token]); // Rerun when user or token changes
+
 
   const confirmMatch = async (matchId) => {
+    if (!token) return;
     try {
       await axios.post(`${API}/matches/${matchId}/confirm`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchPendingMatches();
-      fetchRankings();
-      fetchMatches();
+      fetchPendingMatches(); // Refresh relevant data
+      fetchRankings();      // ELO changes
+      fetchMatches();       // History updates
     } catch (error) {
       console.error('Error confirming match:', error);
+      // TODO: display error to user
     }
   };
 
   const rejectMatch = async (matchId) => {
+    if (!token) return;
     try {
       await axios.post(`${API}/matches/${matchId}/reject`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchPendingMatches();
+      fetchPendingMatches(); // Refresh pending matches
     } catch (error) {
       console.error('Error rejecting match:', error);
+      // TODO: display error to user
     }
   };
 
-  const TabButton = ({ tab, label, icon }) => (
+  const TabButton = ({ tab, label, icon, disabled = false }) => (
     <button
-      onClick={() => setActiveTab(tab)}
+      onClick={() => {
+        if (disabled) {
+          // Optionally show a message or redirect to login
+          setShowLoginView(true);
+          setLoginViewMode('login');
+        } else {
+          setActiveTab(tab);
+        }
+      }}
+      disabled={disabled && activeTab === tab} // Prevent clicking if already active & disabled
       className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors ${
-        activeTab === tab
+        activeTab === tab && !disabled
           ? 'bg-green-600 text-white'
-          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          : disabled
+            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' // Visual style for disabled
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
       }`}
     >
       <span>{icon}</span>
       <span className="hidden sm:inline">{label}</span>
     </button>
   );
+
+  if (showLoginView && !user) {
+    return (
+      <LoginForm
+        initialMode={loginViewMode}
+        onSwitchMode={(mode) => setLoginViewMode(mode)}
+        onLoginSuccess={() => {
+          setShowLoginView(false);
+          // Data fetching is handled by Dashboard's useEffect on user/token change
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -280,49 +371,90 @@ const Dashboard = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-gray-900">🎱 Club de Billar</h1>
-              <div className="hidden sm:block text-sm text-gray-500">
-                Hola, {user?.username} - ELO: {user?.elo_rating?.toFixed(1)}
-              </div>
+              {user && (
+                <div className="hidden sm:block text-sm text-gray-500">
+                  Hola, {user.username} - ELO: {user.elo_rating?.toFixed(1)}
+                  {user.is_admin && (
+                    <span className="ml-2 text-sm font-semibold text-purple-600">(Admin)</span>
+                  )}
+                </div>
+              )}
             </div>
-            <button
-              onClick={logout}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm"
-            >
-              Cerrar Sesión
-            </button>
+            {user ? (
+              <button
+                onClick={logout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Cerrar Sesión
+              </button>
+            ) : (
+              <div className="space-x-2">
+                <button
+                  onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                >
+                  Iniciar Sesión
+                </button>
+                <button
+                  onClick={() => { setShowLoginView(true); setLoginViewMode('register'); }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                >
+                  Registrarse
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation & Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-wrap gap-2 mb-6">
           <TabButton tab="rankings" label="Rankings" icon="🏆" />
-          <TabButton tab="submit" label="Subir Resultado" icon="📝" />
-          <TabButton tab="pending" label={`Pendientes (${pendingMatches.length})`} icon="⏳" />
-          <TabButton tab="history" label="Historial" icon="📊" />
+          <TabButton tab="submit" label="Subir Resultado" icon="📝" disabled={!user} />
+          <TabButton
+            tab="pending"
+            label={`Pendientes ${user && pendingMatches.length > 0 ? `(${pendingMatches.length})` : ''}`}
+            icon="⏳"
+            disabled={!user}
+          />
+          <TabButton tab="history" label="Historial" icon="📊" disabled={!user} />
         </div>
 
-        {/* Tab Content */}
+        {/* {dashboardLoading && <div className="text-center p-4">Cargando contenido...</div>} */}
+
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'rankings' && (
             <RankingsTab rankings={rankings} />
           )}
-          {activeTab === 'submit' && (
+          {user && activeTab === 'submit' && (
             <SubmitMatchTab token={token} onMatchSubmitted={() => {
               fetchRankings();
               fetchMatches();
+              fetchPendingMatches(); // In case a submission affects this (e.g. future admin actions)
             }} />
           )}
-          {activeTab === 'pending' && (
+          {user && activeTab === 'pending' && (
             <PendingMatchesTab 
               matches={pendingMatches} 
               onConfirm={confirmMatch}
               onReject={rejectMatch}
             />
           )}
-          {activeTab === 'history' && (
+          {user && activeTab === 'history' && (
             <HistoryTab matches={matches} currentUser={user} />
+          )}
+          {/* Fallback for when a disabled tab might somehow be active without a user */}
+          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history') && (
+             <div className="p-6 text-center text-gray-500">
+              <p>Por favor, inicia sesión para acceder a esta sección.</p>
+              <button
+                onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
+                className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Iniciar Sesión
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -611,20 +743,22 @@ function App() {
 }
 
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { loading: authLoading } = useAuth(); // Renamed to avoid conflict
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p>Cargando...</p>
+          <p>Cargando Club...</p> {/* Changed text slightly */}
         </div>
       </div>
     );
   }
 
-  return user ? <Dashboard /> : <LoginForm />;
+  // AppContent now always renders Dashboard.
+  // Dashboard itself will decide whether to show LoginForm or its main content.
+  return <Dashboard />;
 };
 
 export default App;
