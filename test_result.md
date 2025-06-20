@@ -182,15 +182,18 @@ backend:
 
   - task: "Match History System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented match history retrieval for confirmed matches"
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested the match history system. The /api/matches/history endpoint correctly returns confirmed matches for the authenticated user, sorted by confirmation date."
 
 frontend:
   - task: "User Interface and Authentication"
