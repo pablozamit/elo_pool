@@ -122,15 +122,18 @@ backend:
 
   - task: "Match Submission System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented match creation with 4 types: rey_mesa, liga_grupos, liga_finales, torneo"
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested match submission for all 4 match types (rey_mesa, liga_grupos, liga_finales, torneo). The /api/matches endpoint correctly creates matches with the appropriate data."
 
   - task: "Match Confirmation System"
     implemented: true
