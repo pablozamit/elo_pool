@@ -43,9 +43,9 @@ class MatchType(str, Enum):
 # ELO Weights for different match types
 ELO_WEIGHTS = {
     MatchType.REY_MESA: 1.0,      # Lowest weight
-    MatchType.LIGA_GRUPOS: 1.5,   # Medium-low weight
-    MatchType.LIGA_FINALES: 2.0,  # Medium-high weight
-    MatchType.TORNEO: 2.5         # Highest weight
+    MatchType.TORNEO: 1.5,        # Low-medium weight
+    MatchType.LIGA_GRUPOS: 2.0,   # Medium-high weight
+    MatchType.LIGA_FINALES: 2.5   # Highest weight
 }
 
 # Models
