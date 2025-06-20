@@ -137,15 +137,18 @@ backend:
 
   - task: "Match Confirmation System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented pending matches retrieval, confirm/reject endpoints"
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested the match confirmation system. The /api/matches/pending endpoint correctly retrieves pending matches, and the /api/matches/{id}/confirm endpoint properly confirms matches and updates ELO ratings."
 
   - task: "ELO Rating Algorithm"
     implemented: true
