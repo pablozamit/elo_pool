@@ -46,11 +46,11 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (username, email, password) => {
+  const register = async (username, password) => { // Removed email from parameters
     try {
       // Assuming backend returns the newly created user on successful registration,
       // but we will prompt them to login manually.
-      await axios.post(`${API}/register`, { username, email, password });
+      await axios.post(`${API}/register`, { username, password }); // Removed email from payload
       return { success: true, message: "¡Registro exitoso! Por favor, inicia sesión." };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Error de registro' };
@@ -84,7 +84,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
   const [isLoginMode, setIsLoginMode] = useState(initialMode === 'login');
   const [formData, setFormData] = useState({
     username: '',
-    email: '',
+    // email: '', // Removed email from formData
     password: ''
   });
   const [error, setError] = useState('');
@@ -113,10 +113,10 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
         // AuthProvider handles user state, Dashboard useEffect will hide this form.
       }
     } else { // Register mode
-      const result = await authRegister(formData.username, formData.email, formData.password);
+      const result = await authRegister(formData.username, formData.password); // Removed formData.email
       if (result.success) {
         setIsLoginMode(true); // Switch to login view
-        setFormData({ username: '', email: '', password: '' }); // Clear form
+        setFormData({ username: '', password: '' }); // Clear form, removed email
         setMessage(result.message || '¡Registro exitoso! Por favor, inicia sesión.');
         if (onSwitchMode) onSwitchMode('login'); // Inform parent
       } else {
@@ -130,7 +130,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
     setIsLoginMode(!isLoginMode);
     setError('');
     setMessage('');
-    setFormData({ username: '', email: '', password: '' }); // Clear form on mode switch
+    setFormData({ username: '', password: '' }); // Clear form on mode switch, removed email
     if (onSwitchMode) onSwitchMode(!isLoginMode ? 'register' : 'login');
   };
 
@@ -169,20 +169,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
             />
           </div>
 
-          {!isLoginMode && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-              />
-            </div>
-          )}
+          {/* Email input field removed */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -52,7 +52,7 @@ ELO_WEIGHTS = {
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
-    email: str
+    # email: str # Removed
     password_hash: str
     elo_rating: float = 1200.0
     matches_played: int = 0
@@ -63,7 +63,7 @@ class User(BaseModel):
 
 class UserCreate(BaseModel):
     username: str
-    email: str
+    # email: str # Removed
     password: str
 
     @validator('username')
@@ -79,7 +79,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
-    email: str
+    # email: str # Removed
     elo_rating: float
     matches_played: int
     matches_won: int
@@ -92,7 +92,7 @@ class UserAdminCreate(UserCreate):
     is_active: Optional[bool] = True
 
 class UserUpdateAdmin(BaseModel):
-    email: Optional[str] = None
+    # email: Optional[str] = None # Removed
     elo_rating: Optional[float] = None
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
@@ -224,15 +224,12 @@ async def register(user_data: UserCreate):
     if existing_user_by_username:
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    # Check if email already exists
-    existing_user_by_email = await db.users.find_one({"email": user_data.email})
-    if existing_user_by_email:
-        raise HTTPException(status_code=400, detail="Email already exists")
+    # Email check removed
     
     # Create new user
     user = User(
         username=user_data.username,
-        email=user_data.email,
+        # email=user_data.email, # Removed
         password_hash=hash_password(user_data.password)
     )
     
@@ -466,10 +463,7 @@ async def admin_create_user(user_data: UserAdminCreate, admin_user: User = Depen
     if existing_user_by_username:
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    # Check if email already exists
-    existing_user_by_email = await db.users.find_one({"email": user_data.email})
-    if existing_user_by_email:
-        raise HTTPException(status_code=400, detail="Email already exists")
+    # Email check removed
 
     user_dict = user_data.dict()
     user_dict["password_hash"] = hash_password(user_data.password)
@@ -552,7 +546,7 @@ async def create_admin_on_startup():
         admin_user = User(
             id=str(uuid.uuid4()),
             username="admin",
-            email="admin@example.com",
+            # email="admin@example.com", # Removed
             password_hash=hash_password("adminpassword"),
             is_admin=True,
             is_active=True,
