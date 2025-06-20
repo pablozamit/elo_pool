@@ -167,15 +167,18 @@ backend:
 
   - task: "Rankings System"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented rankings endpoint with ELO sorting and win rate calculation"
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested the rankings system. The /api/rankings endpoint correctly returns users sorted by ELO rating, with proper rank, matches played, matches won, and win rate calculation."
 
   - task: "Match History System"
     implemented: true
