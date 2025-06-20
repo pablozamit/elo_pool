@@ -220,12 +220,12 @@ class BilliardsClubTester:
         """Verify ELO calculation is correct"""
         self.print_separator("Verifying ELO calculation")
         
-        # ELO weights from server.py
+        # Corrected ELO weights from server.py
         elo_weights = {
-            "rey_mesa": 1.0,
-            "liga_grupos": 1.5,
-            "liga_finales": 2.0,
-            "torneo": 2.5
+            "rey_mesa": 1.0,      # Lowest weight
+            "torneo": 1.5,        # Low-medium weight
+            "liga_grupos": 2.0,   # Medium-high weight
+            "liga_finales": 2.5   # Highest weight
         }
         
         # Get the correct weight for this match type
