@@ -481,6 +481,91 @@ class BilliardsClubTester:
         
         return True
 
-if __name__ == "__main__":
-    tester = BilliardsClubTester()
-    tester.run_complete_test()
+    def test_elo_weights(self):
+        """Test the ELO weights for different match types"""
+        self.print_separator("TESTING ELO WEIGHTS FOR DIFFERENT MATCH TYPES")
+        
+        # Register two users with the same initial ELO
+        user1 = self.register_user("player_a", "player_a@example.com", "password123")
+        user2 = self.register_user("player_b", "player_b@example.com", "password456")
+        
+        if not user1 or not user2:
+            print("❌ User registration failed, cannot continue tests")
+            return False
+            
+        # Login both users
+        token1 = self.login_user("player_a", "password123")
+        token2 = self.login_user("player_b", "password456")
+        
+        if not token1 or not token2:
+            print("❌ User login failed, cannot continue tests")
+            return False
+        
+        # Get initial ELO ratings (should be the same for both users)
+        user1_info = self.get_current_user("player_a")
+        user2_info = self.get_current_user("player_b")
+        
+        initial_elo1 = user1_info["elo_rating"]
+        initial_elo2 = user2_info["elo_rating"]
+        
+        print(f"Initial ELO ratings: player_a={initial_elo1}, player_b={initial_elo2}")
+        
+        # Test all match types with the same scenario
+        match_types = ["rey_mesa", "torneo", "liga_grupos", "liga_finales"]
+        elo_changes = {}
+        
+        for match_type in match_types:
+            print(f"\nTesting match type: {match_type}")
+            
+            # Create match with player_a winning
+            match_id = self.create_match("player_a", "player_b", match_type, "3-1", True)
+            
+            if not match_id:
+                print(f"❌ Failed to create {match_type} match")
+                continue
+                
+            # Confirm match
+            confirm_success = self.confirm_match("player_b", match_id)
+            
+            if not confirm_success:
+                print(f"❌ Failed to confirm {match_type} match")
+                continue
+                
+            # Get updated ELO ratings
+            updated_user1 = self.get_current_user("player_a")
+            updated_user2 = self.get_current_user("player_b")
+            
+            # Calculate ELO change
+            elo_change = abs(updated_user1["elo_rating"] - initial_elo1)
+            elo_changes[match_type] = elo_change
+            
+            print(f"Match type: {match_type}")
+            print(f"Player A: {initial_elo1} → {updated_user1['elo_rating']} (Change: +{elo_change:.2f})")
+            print(f"Player B: {initial_elo2} → {updated_user2['elo_rating']} (Change: -{abs(updated_user2['elo_rating'] - initial_elo2):.2f})")
+            
+            # Update initial ELO for next test
+            initial_elo1 = updated_user1["elo_rating"]
+            initial_elo2 = updated_user2["elo_rating"]
+        
+        # Verify the ordering of ELO changes
+        self.print_separator("ELO WEIGHT VERIFICATION")
+        
+        # Sort match types by ELO change
+        sorted_types = sorted(elo_changes.items(), key=lambda x: x[1])
+        
+        print("\nELO changes by match type (from lowest to highest):")
+        for match_type, change in sorted_types:
+            print(f"{match_type}: {change:.2f}")
+        
+        # Expected order: rey_mesa < torneo < liga_grupos < liga_finales
+        expected_order = ["rey_mesa", "torneo", "liga_grupos", "liga_finales"]
+        actual_order = [match_type for match_type, _ in sorted_types]
+        
+        if actual_order == expected_order:
+            print("\n✅ ELO weights are correctly ordered: rey_mesa < torneo < liga_grupos < liga_finales")
+            return True
+        else:
+            print("\n❌ ELO weights are NOT correctly ordered!")
+            print(f"Expected order: {expected_order}")
+            print(f"Actual order: {actual_order}")
+            return False
