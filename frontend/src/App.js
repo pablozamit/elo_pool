@@ -3,6 +3,8 @@ import './App.css';
 import axios from 'axios';
 import LanguageSwitcher from './LanguageSwitcher'; // Import LanguageSwitcher
 import { useTranslation } from 'react-i18next'; // Import useTranslation
+import AchievementSystem from './components/AchievementSystem';
+import AchievementNotification from './components/AchievementNotification';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -214,6 +216,7 @@ const Dashboard = () => {
   const [rankings, setRankings] = useState([]);
   const [matches, setMatches] = useState([]);
   const [pendingMatches, setPendingMatches] = useState([]);
+  const [achievementNotifications, setAchievementNotifications] = useState([]);
   // const [dashboardLoading, setDashboardLoading] = useState(false); // Optional: for content loading indication
   const { user, token, logout } = useAuth();
   const { t } = useTranslation(); // Initialize useTranslation for Dashboard
@@ -266,14 +269,31 @@ const Dashboard = () => {
     // setDashboardLoading(false);
   };
 
+  // Check for new achievements
+  const checkAchievements = async () => {
+    if (!token) return;
+    try {
+      const response = await axios.post(`${API}/achievements/check`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data.new_badges && response.data.new_badges.length > 0) {
+        setAchievementNotifications(response.data.new_badges);
+      }
+    } catch (error) {
+      console.error('Error checking achievements:', error);
+    }
+  };
+
   useEffect(() => {
     fetchRankings(); // Fetch rankings on initial load & user change
     if (user && token) {
       setShowLoginView(false); // Hide login form if user is now present
       fetchMatches();
       fetchPendingMatches();
+      checkAchievements(); // Check for achievements on login
       // If user just logged in and was on a disabled tab, switch to rankings
-      if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin')) {
+      if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements')) {
         setActiveTab('rankings');
       }
     } else {
@@ -297,6 +317,7 @@ const Dashboard = () => {
       fetchPendingMatches(); // Refresh relevant data
       fetchRankings();      // ELO changes
       fetchMatches();       // History updates
+      checkAchievements();  // Check for new achievements
     } catch (error) {
       console.error('Error confirming match:', error);
       // TODO: display error to user
@@ -356,6 +377,14 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Achievement Notifications */}
+      {achievementNotifications.length > 0 && (
+        <AchievementNotification
+          achievements={achievementNotifications}
+          onClose={() => setAchievementNotifications([])}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -413,6 +442,7 @@ const Dashboard = () => {
             disabled={!user}
           />
           <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
+          <TabButton tab="achievements" label="Logros" icon="🎖️" disabled={!user} />
           {user && user.is_admin && (
             <TabButton tab="admin" label={t('admin')} icon="⚙️" />
           )}
@@ -429,6 +459,7 @@ const Dashboard = () => {
               fetchRankings();
               fetchMatches();
               fetchPendingMatches(); // In case a submission affects this (e.g. future admin actions)
+              checkAchievements(); // Check for achievements after submitting
             }} />
           )}
           {user && activeTab === 'pending' && (
@@ -441,13 +472,16 @@ const Dashboard = () => {
           {user && activeTab === 'history' && (
             <HistoryTab matches={matches} currentUser={user} />
           )}
+          {user && activeTab === 'achievements' && (
+            <AchievementSystem token={token} currentUser={user} />
+          )}
           {user && user.is_admin && activeTab === 'admin' && (
             <AdminTab token={token} />
           )}
           {/* Fallback for when a disabled tab might somehow be active without a user */}
-          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin') && (
+          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements') && (
              <div className="p-6 text-center text-gray-500">
-              <p>Por favor, inicia sesión para acceder a esta sección.</p>
+              <p>Por favor, inicia sesión para acceder a esta sección..</p>
               <button
                 onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
                 className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"

@@ -216,6 +216,9 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
     
     return new_winner_elo, new_loser_elo
 
+# Import achievement system
+from .achievement_routes import achievement_router, check_achievements_after_match
+
 # Routes
 @api_router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate):
@@ -234,6 +237,10 @@ async def register(user_data: UserCreate):
     )
     
     await db.users.insert_one(user.dict())
+    
+    # Check for first registration achievement
+    await check_achievements_after_match(user.id)
+    
     return UserResponse(**user.dict())
 
 @api_router.post("/login")
@@ -380,6 +387,10 @@ async def confirm_match(match_id: str, current_user: User = Depends(get_current_
         }
     )
     
+    # Check achievements for both players
+    await check_achievements_after_match(match["player1_id"])
+    await check_achievements_after_match(match["player2_id"])
+    
     return {"message": "Match confirmed successfully"}
 
 @api_router.post("/matches/{match_id}/reject")
@@ -521,8 +532,9 @@ async def admin_delete_user(user_id: str, admin_user: User = Depends(get_current
     raise HTTPException(status_code=500, detail="Failed to delete user")
 
 
-# Include the router in the main app
+# Include the routers in the main app
 app.include_router(api_router)
+app.include_router(achievement_router)
 
 app.add_middleware(
     CORSMiddleware,
