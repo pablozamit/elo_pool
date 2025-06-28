@@ -219,6 +219,7 @@ const Dashboard = () => {
   const [pendingMatches, setPendingMatches] = useState([]);
   const [achievementNotifications, setAchievementNotifications] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [actionError, setActionError] = useState('');
   // const [dashboardLoading, setDashboardLoading] = useState(false); // Optional: for content loading indication
   const { user, token, logout } = useAuth();
   const { t } = useTranslation(); // Initialize useTranslation for Dashboard
@@ -322,7 +323,8 @@ const Dashboard = () => {
       checkAchievements();  // Check for new achievements
     } catch (error) {
       console.error('Error confirming match:', error);
-      // TODO: display error to user
+      setActionError('Error confirming match');
+      alert('Error confirming match');
     }
   };
 
@@ -335,7 +337,8 @@ const Dashboard = () => {
       fetchPendingMatches(); // Refresh pending matches
     } catch (error) {
       console.error('Error rejecting match:', error);
-      // TODO: display error to user
+      setActionError('Error rejecting match');
+      alert('Error rejecting match');
     }
   };
 

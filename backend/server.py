@@ -6,12 +6,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timedelta
-import jwt
-import hashlib
+from jose import jwt, JWTError
+from passlib.context import CryptContext
 from enum import Enum
 
 ROOT_DIR = Path(__file__).parent
@@ -29,7 +29,9 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 # JWT Configuration
-JWT_SECRET = "billiard_club_secret_key_2025"
+JWT_SECRET = os.environ.get("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable not set")
 JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
 
@@ -66,7 +68,7 @@ class UserCreate(BaseModel):
     # email: str # Removed
     password: str
 
-    @validator('username')
+    @field_validator('username')
     def username_must_not_contain_spaces(cls, v):
         if ' ' in v:
             raise ValueError('Username cannot contain spaces')
@@ -134,11 +136,13 @@ class MatchResponse(BaseModel):
     confirmed_at: Optional[datetime]
 
 # Utility functions
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(password)
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    return pwd_context.verify(password, hashed)
 
 def create_jwt_token(user_id: str, username: str) -> str:
     payload = {
@@ -154,7 +158,7 @@ def verify_jwt_token(token: str) -> dict:
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.JWTError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -196,7 +200,7 @@ async def get_optional_current_user(credentials: Optional[HTTPAuthorizationCrede
         return User(**user_doc)
     except jwt.ExpiredSignatureError: # This is already handled by verify_jwt_token's HTTPException
         return None
-    except jwt.JWTError: # This is also handled by verify_jwt_token's HTTPException
+    except JWTError: # This is also handled by verify_jwt_token's HTTPException
         return None
     except Exception:
         # logger.error("Unexpected error in get_optional_current_user", exc_info=True)
@@ -217,7 +221,8 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
     return new_winner_elo, new_loser_elo
 
 # Import achievement system
-from .achievement_routes import achievement_router, check_achievements_after_match
+from .achievement_routes import achievement_router
+from .achievement_service import check_achievements_after_match
 from .profile_routes import profile_router
 
 # Routes
@@ -465,7 +470,7 @@ async def search_users(query: str, current_user: User = Depends(get_current_user
         "id": {"$ne": current_user.id}
     }).limit(10).to_list(10)
     
-    return [{"username": user["username"], "elo_rating": user["elo_rating"]} for user in users]
+    return [{"id": user["id"], "username": user["username"], "elo_rating": user["elo_rating"]} for user in users]
 
 # Admin Endpoints
 @api_router.post("/admin/users", response_model=UserResponse, tags=["Admin"])
