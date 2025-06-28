@@ -103,6 +103,7 @@ Configurar en `backend/.env`:
 ```
 MONGO_URL="mongodb://localhost:27017"
 DB_NAME="billiard_club"
+JWT_SECRET="your_super_secret_key"
 ```
 
 Configurar en `frontend/.env`:

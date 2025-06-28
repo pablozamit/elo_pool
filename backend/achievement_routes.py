@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import asyncio
-from .server import get_current_user, User, db
+from .server import get_current_user, db, User
+from .achievement_service import (
+    check_user_achievements,
+    get_user_achievements,
+    calculate_user_stats,
+)
 from .achievements import (
     AchievementSystem, Badge, UserBadge, UserAchievements, 
     BADGES_CATALOG, get_rarity_color, get_category_icon, get_user_title
@@ -231,56 +236,3 @@ async def calculate_advanced_stats(user_id: str, matches: List, user: Dict) -> D
     
     return stats
 
-async def check_user_achievements(user_id: str) -> Dict:
-    """Verifica y otorga nuevos logros a un usuario"""
-    user_stats = await calculate_user_stats(user_id)
-    user_achievements = await get_user_achievements(user_id)
-    earned_badge_ids = [ub.badge_id for ub in user_achievements.badges]
-    
-    new_badges = []
-    total_new_points = 0
-    
-    # Verificar cada badge
-    for badge in BADGES_CATALOG:
-        if badge.id not in earned_badge_ids:
-            if achievement_system.check_badge_requirements(badge, user_stats):
-                # Otorgar badge
-                new_badge = UserBadge(
-                    badge_id=badge.id,
-                    earned_at=datetime.utcnow(),
-                    progress=100.0
-                )
-                user_achievements.badges.append(new_badge)
-                new_badges.append(badge)
-                total_new_points += badge.points
-    
-    # Actualizar puntos totales y nivel
-    user_achievements.total_points += total_new_points
-    user_achievements.experience += total_new_points
-    
-    # Calcular nuevo nivel
-    new_level, next_level_exp = achievement_system.calculate_level(user_achievements.experience)
-    old_level = user_achievements.level
-    user_achievements.level = new_level
-    user_achievements.next_level_exp = next_level_exp
-    
-    # Guardar cambios
-    if new_badges:
-        await db.user_achievements.update_one(
-            {"user_id": user_id},
-            {"$set": user_achievements.dict()},
-            upsert=True
-        )
-    
-    return {
-        "new_badges": new_badges,
-        "total_new_points": total_new_points,
-        "level_up": new_level > old_level,
-        "new_level": new_level,
-        "new_title": get_user_title(new_level) if new_level > old_level else None
-    }
-
-# Hook para verificar logros después de cada partida
-async def check_achievements_after_match(user_id: str):
-    """Función para llamar después de confirmar un partido"""
-    return await check_user_achievements(user_id)

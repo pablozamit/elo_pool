@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from .server import get_current_user, User, db
-from .achievements import get_user_achievements
+from .achievement_service import get_user_achievements
 
 profile_router = APIRouter(prefix="/api/users", tags=["User Profiles"])
 
