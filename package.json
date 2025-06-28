@@ -1,0 +1,16 @@
+{
+  "name": "billiard-club-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "cd frontend && npm start",
+    "dev": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "install-frontend": "cd frontend && npm install",
+    "install-backend": "cd backend && pip install -r requirements.txt",
+    "start-backend": "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}
