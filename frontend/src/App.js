@@ -273,7 +273,7 @@ const Dashboard = () => {
       fetchMatches();
       fetchPendingMatches();
       // If user just logged in and was on a disabled tab, switch to rankings
-      if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history')) {
+      if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin')) {
         setActiveTab('rankings');
       }
     } else {
@@ -413,6 +413,9 @@ const Dashboard = () => {
             disabled={!user}
           />
           <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
+          {user && user.is_admin && (
+            <TabButton tab="admin" label={t('admin')} icon="⚙️" />
+          )}
         </div>
 
         {/* {dashboardLoading && <div className="text-center p-4">{t('loading')}</div>} */}
@@ -438,8 +441,11 @@ const Dashboard = () => {
           {user && activeTab === 'history' && (
             <HistoryTab matches={matches} currentUser={user} />
           )}
+          {user && user.is_admin && activeTab === 'admin' && (
+            <AdminTab token={token} />
+          )}
           {/* Fallback for when a disabled tab might somehow be active without a user */}
-          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history') && (
+          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin') && (
              <div className="p-6 text-center text-gray-500">
               <p>Por favor, inicia sesión para acceder a esta sección.</p>
               <button
@@ -453,6 +459,332 @@ const Dashboard = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const AdminTab = ({ token }) => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createFormData, setCreateFormData] = useState({
+    username: '',
+    password: '',
+    is_admin: false,
+    is_active: true
+  });
+
+  // Fetch all users
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API}/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsers(response.data);
+    } catch (error) {
+      setError('Error al cargar usuarios');
+      console.error('Error fetching users:', error);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [token]);
+
+  // Create new user
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await axios.post(`${API}/admin/users`, createFormData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess('Usuario creado exitosamente');
+      setCreateFormData({
+        username: '',
+        password: '',
+        is_admin: false,
+        is_active: true
+      });
+      setShowCreateForm(false);
+      fetchUsers();
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Error al crear usuario');
+    }
+    setLoading(false);
+  };
+
+  // Update user
+  const handleUpdateUser = async (userId, updateData) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await axios.put(`${API}/admin/users/${userId}`, updateData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess('Usuario actualizado exitosamente');
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Error al actualizar usuario');
+    }
+    setLoading(false);
+  };
+
+  // Delete user
+  const handleDeleteUser = async (userId, username) => {
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar al usuario "${username}"?`)) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await axios.delete(`${API}/admin/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess('Usuario eliminado exitosamente');
+      fetchUsers();
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Error al eliminar usuario');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">⚙️ Panel de Administración</h2>
+        <button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+        >
+          {showCreateForm ? 'Cancelar' : 'Crear Usuario'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {success}
+        </div>
+      )}
+
+      {/* Create User Form */}
+      {showCreateForm && (
+        <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <h3 className="text-lg font-semibold mb-4">Crear Nuevo Usuario</h3>
+          <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nombre de Usuario
+              </label>
+              <input
+                type="text"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={createFormData.username}
+                onChange={(e) => setCreateFormData({...createFormData, username: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Contraseña
+              </label>
+              <input
+                type="password"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={createFormData.password}
+                onChange={(e) => setCreateFormData({...createFormData, password: e.target.value})}
+              />
+            </div>
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={createFormData.is_admin}
+                  onChange={(e) => setCreateFormData({...createFormData, is_admin: e.target.checked})}
+                  className="mr-2"
+                />
+                Es Administrador
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={createFormData.is_active}
+                  onChange={(e) => setCreateFormData({...createFormData, is_active: e.target.checked})}
+                  className="mr-2"
+                />
+                Usuario Activo
+              </label>
+            </div>
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+              >
+                {loading ? 'Creando...' : 'Crear Usuario'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Users Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-300">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="border border-gray-300 px-4 py-2 text-left">Usuario</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">ELO</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Partidos</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Ganados</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Admin</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Activo</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                isEditing={editingUser === user.id}
+                onEdit={() => setEditingUser(user.id)}
+                onCancelEdit={() => setEditingUser(null)}
+                onUpdate={(updateData) => handleUpdateUser(user.id, updateData)}
+                onDelete={() => handleDeleteUser(user.id, user.username)}
+                loading={loading}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {loading && (
+        <div className="text-center mt-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, loading }) => {
+  const [editData, setEditData] = useState({
+    elo_rating: user.elo_rating,
+    is_admin: user.is_admin,
+    is_active: user.is_active
+  });
+
+  const handleSave = () => {
+    onUpdate(editData);
+  };
+
+  if (isEditing) {
+    return (
+      <tr className="bg-yellow-50">
+        <td className="border border-gray-300 px-4 py-2 font-medium">{user.username}</td>
+        <td className="border border-gray-300 px-4 py-2">
+          <input
+            type="number"
+            step="0.1"
+            className="w-20 px-2 py-1 border border-gray-300 rounded"
+            value={editData.elo_rating}
+            onChange={(e) => setEditData({...editData, elo_rating: parseFloat(e.target.value)})}
+          />
+        </td>
+        <td className="border border-gray-300 px-4 py-2">{user.matches_played}</td>
+        <td className="border border-gray-300 px-4 py-2">{user.matches_won}</td>
+        <td className="border border-gray-300 px-4 py-2">
+          <input
+            type="checkbox"
+            checked={editData.is_admin}
+            onChange={(e) => setEditData({...editData, is_admin: e.target.checked})}
+          />
+        </td>
+        <td className="border border-gray-300 px-4 py-2">
+          <input
+            type="checkbox"
+            checked={editData.is_active}
+            onChange={(e) => setEditData({...editData, is_active: e.target.checked})}
+          />
+        </td>
+        <td className="border border-gray-300 px-4 py-2">
+          <div className="flex space-x-2">
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm disabled:opacity-50"
+            >
+              Guardar
+            </button>
+            <button
+              onClick={onCancelEdit}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="border border-gray-300 px-4 py-2 font-medium">
+        {user.username}
+        {user.is_admin && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">ADMIN</span>}
+      </td>
+      <td className="border border-gray-300 px-4 py-2">{user.elo_rating?.toFixed(1)}</td>
+      <td className="border border-gray-300 px-4 py-2">{user.matches_played}</td>
+      <td className="border border-gray-300 px-4 py-2">{user.matches_won}</td>
+      <td className="border border-gray-300 px-4 py-2">
+        <span className={`px-2 py-1 rounded text-xs ${user.is_admin ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
+          {user.is_admin ? 'Sí' : 'No'}
+        </span>
+      </td>
+      <td className="border border-gray-300 px-4 py-2">
+        <span className={`px-2 py-1 rounded text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+          {user.is_active ? 'Activo' : 'Inactivo'}
+        </span>
+      </td>
+      <td className="border border-gray-300 px-4 py-2">
+        <div className="flex space-x-2">
+          <button
+            onClick={onEdit}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm"
+          >
+            Editar
+          </button>
+          <button
+            onClick={onDelete}
+            className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm"
+          >
+            Eliminar
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 };
 
