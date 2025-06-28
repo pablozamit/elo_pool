@@ -218,6 +218,7 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
 
 # Import achievement system
 from .achievement_routes import achievement_router, check_achievements_after_match
+from .profile_routes import profile_router
 
 # Routes
 @api_router.post("/register", response_model=UserResponse)
@@ -535,6 +536,7 @@ async def admin_delete_user(user_id: str, admin_user: User = Depends(get_current
 # Include the routers in the main app
 app.include_router(api_router)
 app.include_router(achievement_router)
+app.include_router(profile_router)
 
 app.add_middleware(
     CORSMiddleware,

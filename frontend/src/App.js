@@ -5,6 +5,7 @@ import LanguageSwitcher from './LanguageSwitcher'; // Import LanguageSwitcher
 import { useTranslation } from 'react-i18next'; // Import useTranslation
 import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
+import PlayerProfile from './components/PlayerProfile';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -217,6 +218,7 @@ const Dashboard = () => {
   const [matches, setMatches] = useState([]);
   const [pendingMatches, setPendingMatches] = useState([]);
   const [achievementNotifications, setAchievementNotifications] = useState([]);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   // const [dashboardLoading, setDashboardLoading] = useState(false); // Optional: for content loading indication
   const { user, token, logout } = useAuth();
   const { t } = useTranslation(); // Initialize useTranslation for Dashboard
@@ -385,6 +387,17 @@ const Dashboard = () => {
         />
       )}
 
+      {/* Player Profile Modal */}
+      {selectedPlayer && (
+        <PlayerProfile
+          playerId={selectedPlayer.id}
+          playerUsername={selectedPlayer.username}
+          token={token}
+          currentUser={user}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -397,6 +410,12 @@ const Dashboard = () => {
                   {user.is_admin && (
                     <span className="ml-2 text-sm font-semibold text-purple-600">({t('admin')})</span>
                   )}
+                  <button
+                    onClick={() => setSelectedPlayer({ id: user.id, username: user.username })}
+                    className="ml-2 text-blue-600 hover:text-blue-800 text-sm underline"
+                  >
+                    Ver mi perfil
+                  </button>
                 </div>
               )}
             </div>
@@ -452,7 +471,7 @@ const Dashboard = () => {
 
         <div className="bg-white rounded-lg shadow">
           {activeTab === 'rankings' && (
-            <RankingsTab rankings={rankings} />
+            <RankingsTab rankings={rankings} onPlayerClick={setSelectedPlayer} />
           )}
           {user && activeTab === 'submit' && (
             <SubmitMatchTab token={token} onMatchSubmitted={() => {
@@ -470,7 +489,7 @@ const Dashboard = () => {
             />
           )}
           {user && activeTab === 'history' && (
-            <HistoryTab matches={matches} currentUser={user} />
+            <HistoryTab matches={matches} currentUser={user} onPlayerClick={setSelectedPlayer} />
           )}
           {user && activeTab === 'achievements' && (
             <AchievementSystem token={token} currentUser={user} />
@@ -481,7 +500,7 @@ const Dashboard = () => {
           {/* Fallback for when a disabled tab might somehow be active without a user */}
           {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements') && (
              <div className="p-6 text-center text-gray-500">
-              <p>Por favor, inicia sesión para acceder a esta sección..</p>
+              <p>Por favor, inicia sesión para acceder a esta sección.</p>
               <button
                 onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
                 className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
@@ -823,7 +842,7 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
   );
 };
 
-const RankingsTab = ({ rankings }) => (
+const RankingsTab = ({ rankings, onPlayerClick }) => (
   <div className="p-6">
     <h2 className="text-2xl font-bold mb-4">🏆 Rankings</h2>
     <div className="overflow-x-auto">
@@ -836,6 +855,7 @@ const RankingsTab = ({ rankings }) => (
             <th className="text-left py-2">Partidos</th>
             <th className="text-left py-2">Ganados</th>
             <th className="text-left py-2">% Victoria</th>
+            <th className="text-left py-2">Perfil</th>
           </tr>
         </thead>
         <tbody>
@@ -847,6 +867,14 @@ const RankingsTab = ({ rankings }) => (
               <td className="py-3">{player.matches_played}</td>
               <td className="py-3">{player.matches_won}</td>
               <td className="py-3">{player.win_rate}%</td>
+              <td className="py-3">
+                <button
+                  onClick={() => onPlayerClick({ username: player.username })}
+                  className="text-blue-600 hover:text-blue-800 text-sm underline"
+                >
+                  Ver perfil
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1111,7 +1139,7 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
   </div>
 );
 
-const HistoryTab = ({ matches, currentUser }) => (
+const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
   <div className="p-6">
     <h2 className="text-2xl font-bold mb-4">📊 Historial de Partidos</h2>
     {matches.length === 0 ? (
@@ -1126,6 +1154,7 @@ const HistoryTab = ({ matches, currentUser }) => (
               <th className="text-left py-2">Tipo</th>
               <th className="text-left py-2">Resultado</th>
               <th className="text-left py-2">Estado</th>
+              <th className="text-left py-2">Perfil</th>
             </tr>
           </thead>
           <tbody>
@@ -1151,6 +1180,14 @@ const HistoryTab = ({ matches, currentUser }) => (
                     }`}>
                       {isWinner ? 'Victoria' : 'Derrota'}
                     </span>
+                  </td>
+                  <td className="py-3">
+                    <button
+                      onClick={() => onPlayerClick({ username: opponent })}
+                      className="text-blue-600 hover:text-blue-800 text-sm underline"
+                    >
+                      Ver perfil
+                    </button>
                   </td>
                 </tr>
               );
