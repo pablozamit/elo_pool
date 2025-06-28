@@ -754,6 +754,7 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
       <td className="border border-gray-300 px-4 py-2 font-medium">
         {user.username}
         {user.is_admin && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">ADMIN</span>}
+        }
       </td>
       <td className="border border-gray-300 px-4 py-2">{user.elo_rating?.toFixed(1)}</td>
       <td className="border border-gray-300 px-4 py-2">{user.matches_played}</td>
@@ -942,6 +943,7 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
             autoComplete="off" // Disable browser's own autocomplete
           />
           {isSearchingOpponent && <p className="text-xs text-gray-500 mt-1">Buscando...</p>}
+          }
           {opponentSuggestions.length > 0 && (
             <ul className="border border-gray-300 rounded-md mt-1 max-h-40 overflow-y-auto bg-white absolute z-10 w-full shadow-lg">
               {opponentSuggestions.map((suggestion) => (
