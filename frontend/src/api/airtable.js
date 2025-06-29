@@ -3,6 +3,7 @@ import axios from 'axios';
 const AIRTABLE_API_KEY = process.env.REACT_APP_AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.REACT_APP_AIRTABLE_BASE_ID;
 const BASE_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}`;
+console.log("baseId:", AIRTABLE_BASE_ID);
 
 const headers = {
   Authorization: `Bearer ${AIRTABLE_API_KEY}`,
@@ -39,7 +40,7 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-  const user = users.find(u => u.username === username && u.password_hash === password);
+  const user = users.find(u => u.username === username && u.password === password);
   if (!user) throw new Error('Invalid credentials');
   return user;
 };
@@ -47,7 +48,7 @@ export const loginUser = async (username, password) => {
 export const registerUser = async (username, password) => {
   return createRecord('Users', {
     username,
-    password_hash: password,
+    password,
     elo_rating: 1200,
     matches_played: 0,
     matches_won: 0,
