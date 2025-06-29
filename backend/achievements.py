@@ -50,17 +50,6 @@ class UserAchievements(BaseModel):
 # Definición de los 50 badges
 BADGES_CATALOG = [
     # === BEGINNER BADGES (Nuevos Jugadores) ===
-    Badge(
-        id="first_steps",
-        name="Primeros Pasos",
-        description="Registra tu primera cuenta en el club",
-        icon="🎱",
-        category=BadgeCategory.BEGINNER,
-        rarity=BadgeRarity.COMMON,
-        points=10,
-        requirements={"action": "register"},
-        flavor_text="Todo gran jugador empezó con un primer paso"
-    ),
     
     Badge(
         id="first_match",
@@ -245,28 +234,17 @@ BADGES_CATALOG = [
         flavor_text="Conoces a todo el club"
     ),
     
-    Badge(
-        id="mentor",
-        name="Mentor",
-        description="Ayuda a 5 jugadores nuevos (gana contra jugadores con <1200 ELO)",
-        icon="🎓",
-        category=BadgeCategory.SOCIAL,
-        rarity=BadgeRarity.EPIC,
-        points=400,
-        requirements={"mentor_wins": 5},
-        flavor_text="Compartes tu sabiduría con los novatos"
-    ),
 
     # === ACHIEVEMENT BADGES (Logros Específicos) ===
     Badge(
         id="comeback_king",
         name="Rey del Comeback",
-        description="Gana un partido después de perder contra el mismo oponente",
+        description="Gana 3 partidos seguidos ante un rival tras perderle 2 veces",
         icon="🔄",
         category=BadgeCategory.ACHIEVEMENT,
         rarity=BadgeRarity.RARE,
         points=250,
-        requirements={"comeback_victory": True},
+        requirements={"comeback_series": {"losses": 2, "wins": 3}},
         flavor_text="Nunca te rindes, siempre vuelves más fuerte"
     ),
     
@@ -371,24 +349,24 @@ BADGES_CATALOG = [
     Badge(
         id="night_owl",
         name="Búho Nocturno",
-        description="Juega 10 partidos después de las 22:00",
+        description="Juega 10 partidos después de las 00:00",
         icon="🦉",
         category=BadgeCategory.SPECIAL,
         rarity=BadgeRarity.UNCOMMON,
         points=150,
-        requirements={"night_matches": 10},
+        requirements={"late_night_matches": 10},
         flavor_text="La noche es tu momento"
     ),
     
     Badge(
         id="early_bird",
         name="Madrugador",
-        description="Juega 10 partidos antes de las 8:00",
+        description="Juega 10 partidos antes de las 20:00",
         icon="🐦",
         category=BadgeCategory.SPECIAL,
         rarity=BadgeRarity.UNCOMMON,
         points=150,
-        requirements={"morning_matches": 10},
+        requirements={"before_20_matches": 10},
         flavor_text="El que madruga, Dios le ayuda"
     ),
     
@@ -407,12 +385,12 @@ BADGES_CATALOG = [
     Badge(
         id="speed_demon",
         name="Demonio de la Velocidad",
-        description="Completa 5 partidos en menos de 1 hora cada uno",
+        description="Gana 5 partidas en menos de una hora en total",
         icon="💨",
         category=BadgeCategory.SPECIAL,
         rarity=BadgeRarity.RARE,
         points=300,
-        requirements={"fast_matches": 5},
+        requirements={"fast_total_wins": 5},
         flavor_text="Rápido como el rayo"
     ),
 
@@ -482,28 +460,16 @@ BADGES_CATALOG = [
     Badge(
         id="time_traveler",
         name="Viajero del Tiempo",
-        description="Juega a las 12:34 exactamente",
+        description="Registra una partida exactamente a las 00:34",
         icon="⏰",
         category=BadgeCategory.SPECIAL,
         rarity=BadgeRarity.EPIC,
         points=500,
         secret=True,
-        requirements={"exact_time": "12:34"},
+        requirements={"exact_time": "00:34"},
         flavor_text="El tiempo se detiene para ti"
     ),
     
-    Badge(
-        id="lucky_seven",
-        name="Siete de la Suerte",
-        description="Gana exactamente 7 partidos seguidos, 7 veces",
-        icon="🍀",
-        category=BadgeCategory.STREAK,
-        rarity=BadgeRarity.MYTHIC,
-        points=1777,
-        secret=True,
-        requirements={"lucky_sevens": 7},
-        flavor_text="Los números están de tu lado"
-    ),
 
     # === BADGES DE DIVERSIÓN ===
     Badge(
@@ -521,7 +487,7 @@ BADGES_CATALOG = [
     Badge(
         id="comeback_artist",
         name="Artista del Comeback",
-        description="Gana 5 partidos después de estar perdiendo",
+        description="Remonta 5 partidos",
         icon="🎭",
         category=BadgeCategory.ACHIEVEMENT,
         rarity=BadgeRarity.RARE,
@@ -533,12 +499,12 @@ BADGES_CATALOG = [
     Badge(
         id="marathon_player",
         name="Jugador Maratón",
-        description="Juega durante 6 horas en un solo día",
+        description="Registra partidas durante 6 horas consecutivas en un día",
         icon="🏃",
         category=BadgeCategory.SPECIAL,
         rarity=BadgeRarity.EPIC,
         points=600,
-        requirements={"daily_hours": 6},
+        requirements={"consecutive_hours": 6},
         flavor_text="Tu resistencia es sobrehumana"
     ),
     
@@ -567,40 +533,29 @@ BADGES_CATALOG = [
         flavor_text="Haces que todos se sientan bienvenidos"
     ),
     
-    Badge(
-        id="teacher",
-        name="Profesor",
-        description="Pierde intencionalmente contra 3 jugadores novatos para enseñarles",
-        icon="📚",
-        category=BadgeCategory.SOCIAL,
-        rarity=BadgeRarity.EPIC,
-        points=400,
-        requirements={"teaching_losses": 3},
-        flavor_text="Enseñar es la forma más noble de jugar"
-    ),
 
     # === BADGES DE PRECISIÓN ===
     Badge(
         id="sharpshooter",
         name="Tirador Certero",
-        description="Gana 10 partidos con resultados de 3-0 o 5-0",
+        description="Gana 10 partidos 3-0 en la fase de grupos de liga",
         icon="🎯",
         category=BadgeCategory.SKILL,
         rarity=BadgeRarity.RARE,
         points=400,
-        requirements={"perfect_wins": 10},
+        requirements={"league_group_perfect_wins": 10},
         flavor_text="Tu precisión es quirúrgica"
     ),
     
     Badge(
         id="clutch_player",
         name="Jugador Clutch",
-        description="Gana 5 partidos muy reñidos (diferencia de 1 punto)",
+        description="Gana 5 partidos muy reñidos de liga o eliminatoria por una partida",
         icon="💎",
         category=BadgeCategory.SKILL,
         rarity=BadgeRarity.EPIC,
         points=500,
-        requirements={"close_wins": 5},
+        requirements={"league_clutch_wins": 5},
         flavor_text="Brillas bajo presión"
     ),
 
@@ -615,6 +570,54 @@ BADGES_CATALOG = [
         points=750,
         requirements={"monthly_wins_leader": True},
         flavor_text="Este mes fue tuyo"
+    ),
+
+    Badge(
+        id="daily_champion",
+        name="Campeón del Día",
+        description="Jugador con más victorias del día",
+        icon="🗓️",
+        category=BadgeCategory.ACHIEVEMENT,
+        rarity=BadgeRarity.EPIC,
+        points=300,
+        requirements={"daily_wins_leader": True},
+        flavor_text="Hoy fuiste imparable"
+    ),
+
+    Badge(
+        id="weekly_champion",
+        name="Campeón de la Semana",
+        description="Jugador con más victorias de la semana",
+        icon="📆",
+        category=BadgeCategory.ACHIEVEMENT,
+        rarity=BadgeRarity.LEGENDARY,
+        points=500,
+        requirements={"weekly_wins_leader": True},
+        flavor_text="Dominaste toda la semana"
+    ),
+
+    Badge(
+        id="quarter_champion",
+        name="Campeón del Trimestre",
+        description="Jugador con más victorias del trimestre",
+        icon="📅",
+        category=BadgeCategory.ACHIEVEMENT,
+        rarity=BadgeRarity.LEGENDARY,
+        points=700,
+        requirements={"quarter_wins_leader": True},
+        flavor_text="Tres meses de superioridad"
+    ),
+
+    Badge(
+        id="yearly_champion",
+        name="Campeón del Año",
+        description="Jugador con más victorias del año",
+        icon="🏆",
+        category=BadgeCategory.ACHIEVEMENT,
+        rarity=BadgeRarity.LEGENDARY,
+        points=1000,
+        requirements={"yearly_wins_leader": True},
+        flavor_text="El rey absoluto del año"
     ),
     
     Badge(
@@ -719,10 +722,15 @@ class AchievementSystem:
             matches = user_stats.get("rival_matches", 0)
             win_rate = user_stats.get("rival_win_rate", 0)
             min_rate, max_rate = req_value["win_rate_range"]
-            
-            return (matches >= req_value["matches"] and 
+
+            return (matches >= req_value["matches"] and
                    min_rate <= win_rate <= max_rate)
-        
+
+        elif req_key == "comeback_series":
+            losses = user_stats.get("comeback_series_losses", 0)
+            wins = user_stats.get("comeback_series_wins", 0)
+            return losses >= req_value.get("losses", 0) and wins >= req_value.get("wins", 0)
+
         return False
     
     def get_badge_progress(self, badge: Badge, user_stats: Dict) -> float:

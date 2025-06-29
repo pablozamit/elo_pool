@@ -13,7 +13,7 @@ from passlib.context import CryptContext
 from enum import Enum
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete, and_, or_
-from database import get_db, create_tables, UserDB, MatchDB, UserAchievementDB, AsyncSessionLocal
+from .database import get_db, create_tables, UserDB, MatchDB, UserAchievementDB, AsyncSessionLocal
 import json
 
 # JWT Configuration

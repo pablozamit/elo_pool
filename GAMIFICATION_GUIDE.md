@@ -9,73 +9,73 @@ He implementado un sistema completo de logros y gamificación con **50 badges ú
 ### ✨ **50 Badges Únicos Implementados**
 
 #### 🌱 **BEGINNER BADGES (Nuevos Jugadores)**
-1. **Primeros Pasos** 🎱 - Registra tu primera cuenta
-2. **Debut** 🎯 - Juega tu primer partido
-3. **Primera Victoria** 🏆 - Gana tu primer partido
-4. **Novato** 🌱 - Completa 5 partidos
-5. **Tomando Ritmo** ⚡ - Gana 3 partidos
+1. **Debut** 🎯 - Juega tu primer partido
+2. **Primera Victoria** 🏆 - Gana tu primer partido
+3. **Novato** 🌱 - Completa 5 partidos
+4. **Tomando Ritmo** ⚡ - Gana 3 partidos
 
 #### 🎯 **SKILL BADGES (Habilidad y ELO)**
-6. **Estrella Emergente** ⭐ - Alcanza 1300 ELO
-7. **Jugador Hábil** 🎯 - Alcanza 1500 ELO
-8. **Experto** 🎓 - Alcanza 1700 ELO
-9. **Maestro** 👑 - Alcanza 1900 ELO
-10. **Gran Maestro** 💎 - Alcanza 2100 ELO
+5. **Estrella Emergente** ⭐ - Alcanza 1300 ELO
+6. **Jugador Hábil** 🎯 - Alcanza 1500 ELO
+7. **Experto** 🎓 - Alcanza 1700 ELO
+8. **Maestro** 👑 - Alcanza 1900 ELO
+9. **Gran Maestro** 💎 - Alcanza 2100 ELO
 
 #### 📅 **CONSISTENCY BADGES (Constancia)**
-11. **Habitual** 📅 - Juega 1 partido/semana por 4 semanas
-12. **Dedicado** 💪 - Juega 50 partidos
-13. **Veterano** 🛡️ - Juega 100 partidos
-14. **Voluntad de Hierro** ⚔️ - Juega todos los días por una semana
+10. **Habitual** 📅 - Juega 1 partido/semana por 4 semanas
+11. **Dedicado** 💪 - Juega 50 partidos
+12. **Veterano** 🛡️ - Juega 100 partidos
+13. **Voluntad de Hierro** ⚔️ - Juega todos los días por una semana
 
 #### 👥 **SOCIAL BADGES (Interacción Social)**
-15. **Amigable** 🤝 - Juega contra 10 oponentes diferentes
-16. **Socializador** 👥 - Juega contra 25 oponentes diferentes
-17. **Mentor** 🎓 - Ayuda a 5 jugadores nuevos
-18. **Comité de Bienvenida** 🤗 - Primer oponente de 5 novatos
-19. **Profesor** 📚 - Enseña a 3 jugadores novatos
+14. **Amigable** 🤝 - Juega contra 10 oponentes diferentes
+15. **Socializador** 👥 - Juega contra 25 oponentes diferentes
+16. **Comité de Bienvenida** 🤗 - Primer oponente de 5 novatos
 
 #### 🏆 **ACHIEVEMENT BADGES (Logros Específicos)**
-20. **Rey del Comeback** 🔄 - Gana después de perder vs mismo oponente
-21. **Mata Gigantes** ⚔️ - Vence a jugador con 200+ ELO más
-22. **Perfeccionista** 💯 - 100% victorias en primeros 5 partidos
-23. **Campeón de Torneo** 🏆 - Gana 10 partidos de torneo
-24. **Dominador de Liga** 👑 - Gana 15 partidos de liga
-25. **Artista del Comeback** 🎭 - Gana 5 partidos perdiendo
-26. **Maestro de la Variedad** 🎨 - Gana 3+ partidos de cada tipo
-27. **Tirador Certero** 🎯 - Gana 10 partidos perfectos (3-0/5-0)
-28. **Jugador Clutch** 💎 - Gana 5 partidos muy reñidos
-29. **Campeón del Mes** 📅 - Más victorias del mes
+17. **Rey del Comeback** 🔄 - Gana 3 seguidos al mismo rival tras perder 2 veces
+18. **Mata Gigantes** ⚔️ - Vence a jugador con 200+ ELO más
+19. **Perfeccionista** 💯 - 100% victorias en primeros 5 partidos
+20. **Campeón de Torneo** 🏆 - Gana 10 partidos de torneo
+21. **Dominador de Liga** 👑 - Gana 15 partidos de liga
+22. **Artista del Comeback** 🎭 - Remonta 5 partidos
+23. **Maestro de la Variedad** 🎨 - Gana 3+ partidos de cada tipo
+24. **Tirador Certero** 🎯 - Gana 10 partidos 3-0 en grupos de liga
+25. **Jugador Clutch** 💎 - Gana 5 partidos muy reñidos de liga o eliminatoria
+26. **Campeón del Mes** 📅 - Más victorias del mes
+27. **Campeón del Día** 🗓️ - Más victorias del día
+28. **Campeón de la Semana** 📆 - Más victorias de la semana
+29. **Campeón del Trimestre** 📅 - Más victorias del trimestre
+30. **Campeón del Año** 🏆 - Más victorias del año
 
 #### 🔥 **STREAK BADGES (Rachas)**
-30. **Racha Caliente** 🔥 - Gana 3 consecutivos
-31. **Imparable** 🚀 - Gana 5 consecutivos
-32. **Racha Legendaria** ⚡ - Gana 10 consecutivos
-33. **Maestro de la Consistencia** 📊 - 80% victorias en 20 partidos
+31. **Racha Caliente** 🔥 - Gana 3 consecutivos
+32. **Imparable** 🚀 - Gana 5 consecutivos
+33. **Racha Legendaria** ⚡ - Gana 10 consecutivos
+34. **Maestro de la Consistencia** 📊 - 80% victorias en 20 partidos
 
 #### ⭐ **SPECIAL BADGES (Eventos Especiales)**
-34. **Búho Nocturno** 🦉 - Juega 10 partidos después 22:00
-35. **Madrugador** 🐦 - Juega 10 partidos antes 8:00
-36. **Guerrero de Fin de Semana** ⚔️ - 20 partidos en fines de semana
-37. **Demonio de la Velocidad** 💨 - 5 partidos en <1 hora cada uno
-38. **Alma de la Fiesta** 🎉 - Juega 5 días diferentes en una semana
-39. **Jugador Maratón** 🏃 - Juega 6 horas en un día
-40. **Propósito de Año Nuevo** 🎊 - Primer partido del año
+35. **Búho Nocturno** 🦉 - Juega 10 partidos después de las 00:00
+36. **Madrugador** 🐦 - Juega 10 partidos antes de las 20:00
+37. **Guerrero de Fin de Semana** ⚔️ - 20 partidos en fines de semana
+38. **Demonio de la Velocidad** 💨 - Gana 5 partidas en menos de una hora en total
+39. **Alma de la Fiesta** 🎉 - Juega 5 días diferentes en una semana
+40. **Jugador Maratón** 🏃 - Registra partidas durante 6 horas consecutivas en un día
+41. **Propósito de Año Nuevo** 🎊 - Primer partido del año
 
 #### 👑 **LEGENDARY BADGES (Épicos)**
-41. **Leyenda del Club** 👑 - Alcanza puesto #1
-42. **Inmortal** 💎 - Top 3 durante 30 días
-43. **Centurión** 🏛️ - Gana 100 partidos
-44. **Intocable** 🛡️ - 90% victorias con 50+ partidos
+42. **Leyenda del Club** 👑 - Alcanza puesto #1
+43. **Inmortal** 💎 - Top 3 durante 30 días
+44. **Centurión** 🏛️ - Gana 100 partidos
+45. **Intocable** 🛡️ - 90% victorias con 50+ partidos
 
 #### 🎭 **SOCIAL & RIVALRY BADGES**
-45. **Rival** ⚔️ - 10 partidos vs mismo oponente
-46. **Némesis** ⚖️ - Rivalidad equilibrada en 20+ partidos
+46. **Rival** ⚔️ - 10 partidos vs mismo oponente
+47. **Némesis** ⚖️ - Rivalidad equilibrada en 20+ partidos
 
 #### 🔮 **SECRET BADGES (Ocultos)**
-47. **Fénix** 🔥 - Recupera 300+ ELO después de perder 300+
-48. **Viajero del Tiempo** ⏰ - Juega exactamente a las 12:34
-49. **Siete de la Suerte** 🍀 - Gana exactamente 7 seguidos, 7 veces
+48. **Fénix** 🔥 - Recupera 300+ ELO después de perder 300+
+49. **Viajero del Tiempo** ⏰ - Registra una partida exactamente a las 00:34
 
 #### 🌟 **ULTIMATE BADGE**
 50. **Dios del Billar** 🌟 - Obtén todos los demás badges
