@@ -10,6 +10,7 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
+// USERS
 const normalizeUser = (u) => ({
   id: u.id,
   username: u.Username,
@@ -46,6 +47,7 @@ const denormalizeUser = (u) => {
   return out;
 };
 
+// MATCHES
 const normalizeMatch = (m) => {
   const result = {
     id: m.id,
@@ -111,6 +113,7 @@ const denormalizeMatch = (m) => {
   return out;
 };
 
+// BADGES
 const normalizeBadge = (b) => ({
   id: b.id,
   name: b['Badge Name'],
@@ -122,6 +125,7 @@ const normalizeBadge = (b) => ({
   suggested_improvements: b['Suggested Badge Improvements'],
 });
 
+// USER BADGES
 const normalizeUserBadge = (ub) => ({
   id: ub.id,
   name: ub.Name,
