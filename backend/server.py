@@ -236,22 +236,32 @@ async def register(user_data: UserCreate):
 
 @api_router.post("/login")
 async def login(login_data: UserLogin):
-    print(f"Login attempt for username: {login_data.username}")
+    print(f"🔍 Login attempt for username: '{login_data.username}'")
     
+    # Buscar usuario en la base de datos
     user = await db.users.find_one({"username": login_data.username})
     if not user:
-        print(f"User not found: {login_data.username}")
+        print(f"❌ User not found: '{login_data.username}'")
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    print(f"User found: {user['username']}, checking password...")
+    print(f"✅ User found: {user['username']}")
+    print(f"🔐 Stored password hash: {user['password_hash'][:20]}...")
+    print(f"🔑 Attempting to verify password: '{login_data.password}'")
     
-    if not verify_password(login_data.password, user["password_hash"]):
-        print("Password verification failed")
+    # Verificar contraseña
+    password_valid = verify_password(login_data.password, user["password_hash"])
+    print(f"🔓 Password verification result: {password_valid}")
+    
+    if not password_valid:
+        print("❌ Password verification failed")
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    print("Password verified successfully")
+    print("✅ Password verified successfully")
     
+    # Crear token
     token = create_jwt_token(user["id"], user["username"])
+    print(f"🎫 Token created successfully")
+    
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -543,33 +553,51 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def create_admin_on_startup():
-    print("Checking for admin user...")
-    admin_user_exists = await db.users.find_one({"username": "admin"})
-    if not admin_user_exists:
-        print("Creating admin user...")
-        admin_user = User(
-            id=str(uuid.uuid4()),
-            username="admin",
-            password_hash=hash_password("adminpassword"),
-            is_admin=True,
-            is_active=True,
-            elo_rating=1200.0,
-            matches_played=0,
-            matches_won=0,
-            created_at=datetime.utcnow()
-        )
-        await db.users.insert_one(admin_user.dict())
-        print("Default admin user 'admin' created with password 'adminpassword'.")
+    print("🚀 Starting up application...")
+    print("🔍 Checking for admin user...")
+    
+    # Primero, eliminar cualquier usuario admin existente para empezar limpio
+    await db.users.delete_many({"username": "admin"})
+    print("🗑️ Removed any existing admin users")
+    
+    # Crear el usuario admin desde cero
+    admin_password = "adminpassword"
+    admin_password_hash = hash_password(admin_password)
+    
+    print(f"🔐 Creating admin with password: '{admin_password}'")
+    print(f"🔑 Generated hash: {admin_password_hash[:20]}...")
+    
+    admin_user = User(
+        id=str(uuid.uuid4()),
+        username="admin",
+        password_hash=admin_password_hash,
+        is_admin=True,
+        is_active=True,
+        elo_rating=1200.0,
+        matches_played=0,
+        matches_won=0,
+        created_at=datetime.utcnow()
+    )
+    
+    await db.users.insert_one(admin_user.dict())
+    print("✅ Admin user created successfully")
+    
+    # Verificar que se creó correctamente
+    created_admin = await db.users.find_one({"username": "admin"})
+    if created_admin:
+        print(f"✅ Verification: Admin user exists with ID: {created_admin['id']}")
+        print(f"🔐 Stored hash: {created_admin['password_hash'][:20]}...")
+        
+        # Probar la verificación de contraseña
+        test_verify = verify_password(admin_password, created_admin['password_hash'])
+        print(f"🧪 Password verification test: {test_verify}")
+        
+        if test_verify:
+            print("🎉 Admin login should work now!")
+        else:
+            print("❌ Password verification failed - there's still an issue")
     else:
-        print("Admin user 'admin' already exists.")
-        # Verificar que el admin tenga la contraseña correcta
-        if not verify_password("adminpassword", admin_user_exists["password_hash"]):
-            print("Admin password doesn't match, updating...")
-            await db.users.update_one(
-                {"username": "admin"},
-                {"$set": {"password_hash": hash_password("adminpassword")}}
-            )
-            print("Admin password updated.")
+        print("❌ Failed to create admin user")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
