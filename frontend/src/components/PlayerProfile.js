@@ -4,6 +4,7 @@ import {
   listRecords,
   searchUsers,
   fetchUserBadges,
+  fetchBadges,
   fetchMatchesForUser,
 } from '../api/airtable';
 
@@ -330,8 +331,33 @@ const OverviewTab = ({ player, playerAchievements, playerStats, recentMatches })
 
 // Pestaña de logros
 const AchievementsTab = ({ playerAchievements }) => {
+  const [allBadges, setAllBadges] = useState([]);
   const badges = playerAchievements?.badges || [];
   const totalPoints = playerAchievements?.total_points || 0;
+
+  useEffect(() => {
+    const loadBadges = async () => {
+      try {
+        const data = await fetchBadges();
+        setAllBadges(data);
+      } catch (err) {
+        console.error('Error fetching badges:', err);
+      }
+    };
+    loadBadges();
+  }, []);
+
+  const earnedMap = {};
+  badges.forEach((b) => {
+    earnedMap[b.badge_id] = b;
+  });
+  const sortedBadges = [...allBadges].sort((a, b) => {
+    const aEarned = earnedMap[a.id];
+    const bEarned = earnedMap[b.id];
+    if (aEarned && !bEarned) return -1;
+    if (!aEarned && bEarned) return 1;
+    return 0;
+  });
 
   return (
     <div className="p-6">
@@ -344,15 +370,20 @@ const AchievementsTab = ({ playerAchievements }) => {
         </p>
       </div>
 
-      {badges.length === 0 ? (
+      {sortedBadges.length === 0 ? (
         <div className="text-center text-gray-500 py-8">
           <div className="text-6xl mb-4">🎱</div>
           <p>Este jugador aún no tiene logros</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {badges.map((badge) => (
-            <BadgeCard key={badge.badge_id} badge={badge} />
+          {sortedBadges.map((badge) => (
+            <BadgeCard
+              key={badge.id}
+              badge={badge}
+              earned={!!earnedMap[badge.id]}
+              earnedAt={earnedMap[badge.id]?.earned_at}
+            />
           ))}
         </div>
       )}
@@ -538,13 +569,22 @@ const QuickStat = ({ label, value, icon }) => (
   </div>
 );
 
-const BadgeCard = ({ badge }) => (
-  <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-lg p-4">
-    <div className="text-center">
+const BadgeCard = ({ badge, earned, earnedAt }) => (
+  <div
+    className={`border rounded-lg p-4 transition-all ${
+      earned
+        ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200'
+        : 'bg-gray-100 border-gray-200 text-gray-400'
+    }`}
+  >
+    <div className={`text-center ${earned ? '' : 'opacity-60'}`}>
       <div className="text-3xl mb-2">🏆</div>
-      <h4 className="font-medium text-gray-900">{badge.badge_id}</h4>
+      <h4 className="font-medium text-gray-900">{badge.name}</h4>
+      <p className="text-xs mt-1 text-gray-600">{badge.description}</p>
       <p className="text-xs text-gray-600 mt-2">
-        {new Date(badge.earned_at).toLocaleDateString()}
+        {earned
+          ? `Obtenido: ${new Date(earnedAt).toLocaleDateString()}`
+          : 'Pendiente por desbloquear'}
       </p>
     </div>
   </div>
