@@ -929,6 +929,7 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
 );
 
 const SubmitMatchTab = ({ onMatchSubmitted }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     opponent_username: '',
