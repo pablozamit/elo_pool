@@ -251,6 +251,8 @@ export const fetchUserBadges = async (userId) => {
   return all.filter((b) => b.user_id === userId);
 };
 
+export { denormalizeUser };
+
 export const fetchBadges = async () => {
   return listRecords('Badges');
 };
