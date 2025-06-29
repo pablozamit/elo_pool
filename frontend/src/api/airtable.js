@@ -176,15 +176,12 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-
   const user = users.find(
     (u) => u.username === username && u.password === password
   );
-
   if (!user) {
     throw new Error('Invalid credentials');
   }
-
   return user;
 };
 
@@ -250,3 +247,5 @@ export const checkAchievements = async (userId) => {
   const userBadges = await fetchUserBadges(userId);
   return { new_badges: userBadges };
 };
+
+export { denormalizeUser };
