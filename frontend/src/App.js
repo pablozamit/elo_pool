@@ -144,8 +144,8 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
           <div className="logo-container justify-center mb-6">
             <div className="logo-icon">🎱</div>
             <div>
-              <h1 className="club-name">Elite Billiards</h1>
-              <p className="club-subtitle">Premium Club</p>
+              <h1 className="club-name">La Catrina</h1>
+              <p className="club-subtitle">Pool Club</p>
             </div>
           </div>
           <h2 className="premium-subtitle text-xl mb-2">
@@ -411,8 +411,8 @@ const Dashboard = () => {
             <div className="logo-container">
               <div className="logo-icon">🎱</div>
               <div>
-                <h1 className="club-name">Elite Billiards</h1>
-                <p className="club-subtitle">Premium Club</p>
+                <h1 className="club-name">La Catrina</h1>
+                <p className="club-subtitle">Pool Club</p>
               </div>
             </div>
             
@@ -1299,7 +1299,7 @@ const AppContent = () => {
         <div className="app-background"></div>
         <div className="text-center">
           <div className="loading-spinner mx-auto mb-6"></div>
-          <h2 className="premium-title text-2xl mb-2">Elite Billiards</h2>
+          <h2 className="premium-title text-2xl mb-2">La Catrina Pool Club</h2>
           <p className="text-gray-400">Cargando aplicación...</p>
         </div>
       </div>
