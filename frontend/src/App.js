@@ -1144,7 +1144,10 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
   );
 };
 
-const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
+const PendingMatchesTab = ({ matches, onConfirm, onReject }) => {
+  const { t } = useTranslation();
+
+  return (
   <div className="space-y-6">
     <div className="text-center">
       <h2 className="premium-title text-3xl mb-2">{t('pendingMatches')}</h2>
@@ -1209,9 +1212,13 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
       </div>
     )}
   </div>
-);
+  );
+};
 
-const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
+const HistoryTab = ({ matches, currentUser, onPlayerClick }) => {
+  const { t } = useTranslation();
+
+  return (
   <div className="space-y-6">
     <div className="text-center">
       <h2 className="premium-title text-3xl mb-2">{t('matchHistory')}</h2>
@@ -1281,7 +1288,8 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
       </div>
     )}
   </div>
-);
+  );
+};
 
 function App() {
   return (

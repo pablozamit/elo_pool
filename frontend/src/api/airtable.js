@@ -140,8 +140,6 @@ const normalizers = {
 
 export const listRecords = async (table, params = '') => {
   const url = `${BASE_URL}/${table}${params}`;
-  const res = await axios.get(url, { headers });
-  return res.data.records.map(r => ({ id: r.id, ...r.fields }));
   const response = await axios.get(url, { headers });
   const records = response.data.records.map((r) => {
     const item = { id: r.id, ...r.fields };
@@ -152,8 +150,6 @@ export const listRecords = async (table, params = '') => {
 
 export const createRecord = async (table, fields) => {
   const url = `${BASE_URL}/${table}`;
-  const res = await axios.post(url, { fields }, { headers });
-  return { id: res.data.id, ...res.data.fields };
   const payload = { fields };
   const response = await axios.post(url, payload, { headers });
   const record = { id: response.data.id, ...response.data.fields };
@@ -162,8 +158,6 @@ export const createRecord = async (table, fields) => {
 
 export const updateRecord = async (table, id, fields) => {
   const url = `${BASE_URL}/${table}/${id}`;
-  const res = await axios.patch(url, { fields }, { headers });
-  return { id: res.data.id, ...res.data.fields };
   const payload = { fields };
   const response = await axios.patch(url, payload, { headers });
   const record = { id: response.data.id, ...response.data.fields };
@@ -182,22 +176,16 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-  const user = users.find(u => u.username === username && u.password === password);
-  if (!user) throw new Error('Invalid credentials');
-
   const user = users.find(
     (u) => u.username === username && u.password === password
   );
-
   if (!user) {
     throw new Error('Invalid credentials');
   }
-
   return user;
 };
 
 export const registerUser = async (username, password) => {
-  return createRecord('Users', {
   const fields = denormalizeUser({
     username,
     password,
@@ -205,7 +193,6 @@ export const registerUser = async (username, password) => {
     matches_played: 0,
     matches_won: 0,
     is_admin: false,
-    is_active: true
     is_active: true,
   });
   return createRecord('Users', fields);
@@ -213,7 +200,6 @@ export const registerUser = async (username, password) => {
 
 export const fetchMatchesForUser = async (username) => {
   const all = await listRecords('Matches');
-  return all.filter(m => m.player1_username === username || m.player2_username === username);
   return all.filter(
     (m) => m.player1_username === username || m.player2_username === username
   );
@@ -221,7 +207,6 @@ export const fetchMatchesForUser = async (username) => {
 
 export const fetchPendingMatchesForUser = async (username) => {
   const all = await listRecords('Matches');
-  return all.filter(m => m.status === 'pending' && (m.player1_username === username || m.player2_username === username));
   return all.filter(
     (m) =>
       m.status === 'pending' &&
@@ -230,12 +215,10 @@ export const fetchPendingMatchesForUser = async (username) => {
 };
 
 export const createMatch = async (fields) => {
-  return createRecord('Matches', fields);
   return createRecord('Matches', denormalizeMatch(fields));
 };
 
 export const updateMatch = async (id, fields) => {
-  return updateRecord('Matches', id, fields);
   return updateRecord('Matches', id, denormalizeMatch(fields));
 };
 
@@ -246,7 +229,6 @@ export const fetchRankings = async () => {
 
 export const searchUsers = async (query) => {
   const users = await listRecords('Users');
-  return users.filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
   return users.filter((u) =>
     u.username.toLowerCase().includes(query.toLowerCase())
   );
@@ -254,7 +236,6 @@ export const searchUsers = async (query) => {
 
 export const fetchUserBadges = async (userId) => {
   const all = await listRecords('UserBadges');
-  return all.filter(b => b.user_id === userId);
   return all.filter((b) => b.user_id === userId);
 };
 
@@ -266,3 +247,5 @@ export const checkAchievements = async (userId) => {
   const userBadges = await fetchUserBadges(userId);
   return { new_badges: userBadges };
 };
+
+export { denormalizeUser };
