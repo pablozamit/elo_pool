@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import {
+  listRecords,
+  searchUsers,
+  fetchUserBadges,
+  fetchMatchesForUser,
+} from '../api/airtable';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
 
-const PlayerProfile = ({ playerId, playerUsername, token, currentUser, onClose }) => {
+
+const PlayerProfile = ({ playerId, playerUsername, currentUser, onClose }) => {
   const { t } = useTranslation();
   const [player, setPlayer] = useState(null);
   const [playerAchievements, setPlayerAchievements] = useState(null);
@@ -23,51 +27,27 @@ const PlayerProfile = ({ playerId, playerUsername, token, currentUser, onClose }
   const fetchPlayerData = async () => {
     setLoading(true);
     try {
-      // Si tenemos username pero no ID, buscar el jugador primero
       let targetPlayerId = playerId;
       if (!targetPlayerId && playerUsername) {
-        const searchResponse = await axios.get(`${API}/users/search?query=${playerUsername}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const foundPlayer = searchResponse.data.find(p => p.username === playerUsername);
-        if (foundPlayer) {
-          targetPlayerId = foundPlayer.id;
-        }
+        const results = await searchUsers(playerUsername);
+        const found = results.find(p => p.username === playerUsername);
+        if (found) targetPlayerId = found.id;
       }
+      if (!targetPlayerId) throw new Error('Jugador no encontrado');
 
-      if (!targetPlayerId) {
-        throw new Error('Jugador no encontrado');
-      }
+      const users = await listRecords('Users');
+      const playerData = users.find(u => u.id === targetPlayerId);
+      const achievements = await fetchUserBadges(targetPlayerId);
+      const matches = await fetchMatchesForUser(playerData.username);
 
-      // Obtener datos del jugador
-      const [playerRes, achievementsRes, statsRes] = await Promise.all([
-        axios.get(`${API}/users/${targetPlayerId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get(`${API}/achievements/user/${targetPlayerId}`),
-        axios.get(`${API}/users/${targetPlayerId}/stats`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
-
-      setPlayer(playerRes.data);
-      setPlayerAchievements(achievementsRes.data);
-      setPlayerStats(statsRes.data);
-
-      // Obtener historial de partidos si es el usuario actual o si es público
-      if (targetPlayerId === currentUser?.id) {
-        const matchesRes = await axios.get(`${API}/matches/history`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setPlayerMatches(matchesRes.data);
-      } else {
-        // Para otros jugadores, obtener historial público
-        const matchesRes = await axios.get(`${API}/users/${targetPlayerId}/matches/public`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setPlayerMatches(matchesRes.data);
-      }
-
+      setPlayer(playerData);
+      setPlayerAchievements(achievements);
+      setPlayerStats({
+        matches_played: playerData.matches_played,
+        matches_won: playerData.matches_won,
+        elo_rating: playerData.elo_rating,
+      });
+      setPlayerMatches(matches);
     } catch (error) {
       console.error('Error fetching player data:', error);
     }

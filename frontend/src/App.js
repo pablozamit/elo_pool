@@ -1,14 +1,27 @@
 import React, { useState, useEffect, createContext, useContext, Suspense } from 'react';
 import './App.css';
-import axios from 'axios';
+import {
+  loginUser,
+  registerUser,
+  fetchRankings as airtableFetchRankings,
+  fetchMatchesForUser,
+  fetchPendingMatchesForUser,
+  createMatch as airtableCreateMatch,
+  updateMatch,
+  searchUsers,
+  checkAchievements as checkAchievementsAPI,
+  listRecords,
+  createRecord,
+  updateRecord,
+  deleteRecord,
+} from './api/airtable';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
 import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// Base Airtable interaction is handled via api/airtable.js
 
 // Auth Context
 const AuthContext = createContext();
@@ -19,49 +32,38 @@ const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const verifyToken = async () => {
-      if (token) {
-        try {
-          const response = await axios.get(`${API}/me`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setUser(response.data);
-        } catch (error) {
-          localStorage.removeItem('token');
-          setToken(null);
-          setUser(null);
-          console.error("Token verification failed:", error);
-        }
-      }
-      setLoading(false);
-    };
-    verifyToken();
-  }, [token]);
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
+  }, []);
 
   const login = async (username, password) => {
     try {
-      const response = await axios.post(`${API}/login`, { username, password });
-      const { access_token, user } = response.data;
-      localStorage.setItem('token', access_token);
-      setToken(access_token);
-      setUser(user);
+      const userData = await loginUser(username, password);
+      localStorage.setItem('token', 'airtable');
+      localStorage.setItem('user', JSON.stringify(userData));
+      setToken('airtable');
+      setUser(userData);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.detail || 'Error de login' };
+      return { success: false, error: 'Error de login' };
     }
   };
 
   const register = async (username, password) => {
     try {
-      await axios.post(`${API}/register`, { username, password });
-      return { success: true, message: "¡Registro exitoso! Por favor, inicia sesión." };
+      await registerUser(username, password);
+      return { success: true, message: '¡Registro exitoso! Por favor, inicia sesión.' };
     } catch (error) {
-      return { success: false, error: error.response?.data?.detail || 'Error de registro' };
+      return { success: false, error: 'Error de registro' };
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
   };
@@ -233,7 +235,7 @@ const Dashboard = () => {
   const [achievementNotifications, setAchievementNotifications] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [actionError, setActionError] = useState('');
-  const { user, token, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { t } = useTranslation();
 
   const [showLoginView, setShowLoginView] = useState(false);
@@ -242,8 +244,8 @@ const Dashboard = () => {
   // Fetch rankings
   const fetchRankings = async () => {
     try {
-      const response = await axios.get(`${API}/rankings`);
-      setRankings(response.data);
+      const data = await airtableFetchRankings();
+      setRankings(data);
     } catch (error) {
       console.error('Error fetching rankings:', error);
       setRankings([]);
@@ -252,12 +254,10 @@ const Dashboard = () => {
 
   // Fetch user-specific matches
   const fetchMatches = async () => {
-    if (!token) return;
+    if (!user) return;
     try {
-      const response = await axios.get(`${API}/matches/history`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMatches(response.data);
+      const data = await fetchMatchesForUser(user.username);
+      setMatches(data);
     } catch (error) {
       console.error('Error fetching matches:', error);
       setMatches([]);
@@ -266,12 +266,10 @@ const Dashboard = () => {
 
   // Fetch user-specific pending matches
   const fetchPendingMatches = async () => {
-    if (!token) return;
+    if (!user) return;
     try {
-      const response = await axios.get(`${API}/matches/pending`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setPendingMatches(response.data);
+      const data = await fetchPendingMatchesForUser(user.username);
+      setPendingMatches(data);
     } catch (error) {
       console.error('Error fetching pending matches:', error);
       setPendingMatches([]);
@@ -280,14 +278,11 @@ const Dashboard = () => {
 
   // Check for new achievements
   const checkAchievements = async () => {
-    if (!token) return;
+    if (!user) return;
     try {
-      const response = await axios.post(`${API}/achievements/check`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.data.new_badges && response.data.new_badges.length > 0) {
-        setAchievementNotifications(response.data.new_badges);
+      const data = await checkAchievementsAPI(user.id);
+      if (data.new_badges && data.new_badges.length > 0) {
+        setAchievementNotifications(data.new_badges);
       }
     } catch (error) {
       console.error('Error checking achievements:', error);
@@ -296,7 +291,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchRankings();
-    if (user && token) {
+    if (user) {
       setShowLoginView(false);
       fetchMatches();
       fetchPendingMatches();
@@ -311,14 +306,12 @@ const Dashboard = () => {
           setActiveTab('rankings');
       }
     }
-  }, [user, token]);
+  }, [user]);
 
   const confirmMatch = async (matchId) => {
-    if (!token) return;
+    if (!user) return;
     try {
-      await axios.post(`${API}/matches/${matchId}/confirm`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await updateMatch(matchId, { status: 'confirmed' });
       fetchPendingMatches();
       fetchRankings();
       fetchMatches();
@@ -331,11 +324,9 @@ const Dashboard = () => {
   };
 
   const rejectMatch = async (matchId) => {
-    if (!token) return;
+    if (!user) return;
     try {
-      await axios.post(`${API}/matches/${matchId}/reject`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await updateMatch(matchId, { status: 'rejected' });
       fetchPendingMatches();
     } catch (error) {
       console.error('Error rejecting match:', error);
@@ -398,7 +389,6 @@ const Dashboard = () => {
         <PlayerProfile
           playerId={selectedPlayer.id}
           playerUsername={selectedPlayer.username}
-          token={token}
           currentUser={user}
           onClose={() => setSelectedPlayer(null)}
         />
@@ -494,7 +484,7 @@ const Dashboard = () => {
             <RankingsTab rankings={rankings} onPlayerClick={setSelectedPlayer} />
           )}
           {user && activeTab === 'submit' && (
-            <SubmitMatchTab token={token} onMatchSubmitted={() => {
+            <SubmitMatchTab onMatchSubmitted={() => {
               fetchRankings();
               fetchMatches();
               fetchPendingMatches();
@@ -512,10 +502,10 @@ const Dashboard = () => {
             <HistoryTab matches={matches} currentUser={user} onPlayerClick={setSelectedPlayer} />
           )}
           {user && activeTab === 'achievements' && (
-            <AchievementSystem token={token} currentUser={user} />
+            <AchievementSystem currentUser={user} />
           )}
           {user && user.is_admin && activeTab === 'admin' && (
-            <AdminTab token={token} />
+            <AdminTab />
           )}
           {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements') && (
              <div className="text-center py-12">
@@ -536,7 +526,7 @@ const Dashboard = () => {
   );
 };
 
-const AdminTab = ({ token }) => {
+const AdminTab = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -553,10 +543,8 @@ const AdminTab = ({ token }) => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/admin/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUsers(response.data);
+      const data = await listRecords('Users');
+      setUsers(data);
     } catch (error) {
       setError('Error al cargar usuarios');
       console.error('Error fetching users:', error);
@@ -566,7 +554,7 @@ const AdminTab = ({ token }) => {
 
   useEffect(() => {
     fetchUsers();
-  }, [token]);
+  }, []);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -575,8 +563,14 @@ const AdminTab = ({ token }) => {
     setSuccess('');
 
     try {
-      await axios.post(`${API}/admin/users`, createFormData, {
-        headers: { Authorization: `Bearer ${token}` }
+      await createRecord('Users', {
+        username: createFormData.username,
+        password_hash: createFormData.password,
+        is_admin: createFormData.is_admin,
+        is_active: createFormData.is_active,
+        elo_rating: 1200,
+        matches_played: 0,
+        matches_won: 0,
       });
       setSuccess('Usuario creado exitosamente');
       setCreateFormData({
@@ -599,9 +593,7 @@ const AdminTab = ({ token }) => {
     setSuccess('');
 
     try {
-      await axios.put(`${API}/admin/users/${userId}`, updateData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await updateRecord('Users', userId, updateData);
       setSuccess('Usuario actualizado exitosamente');
       setEditingUser(null);
       fetchUsers();
@@ -621,9 +613,7 @@ const AdminTab = ({ token }) => {
     setSuccess('');
 
     try {
-      await axios.delete(`${API}/admin/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await deleteRecord('Users', userId);
       setSuccess('Usuario eliminado exitosamente');
       fetchUsers();
     } catch (error) {
@@ -934,7 +924,7 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
   </div>
 );
 
-const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
+const SubmitMatchTab = ({ onMatchSubmitted }) => {
   const [formData, setFormData] = useState({
     opponent_username: '',
     match_type: 'rey_mesa',
@@ -962,9 +952,7 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
     setSuccess('');
 
     try {
-      await axios.post(`${API}/matches`, formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await airtableCreateMatch(formData);
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
       setFormData({
         opponent_username: '',
@@ -988,10 +976,8 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
       setIsSearchingOpponent(true);
       const timeoutId = setTimeout(async () => {
         try {
-          const response = await axios.get(`${API}/users/search?query=${formData.opponent_username}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setOpponentSuggestions(response.data);
+          const suggestions = await searchUsers(formData.opponent_username);
+          setOpponentSuggestions(suggestions);
         } catch (err) {
           console.error('Error fetching opponent suggestions:', err);
           setOpponentSuggestions([]);
@@ -1010,7 +996,7 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
         clearTimeout(debounceTimeout);
       }
     };
-  }, [formData.opponent_username, token]);
+  }, [formData.opponent_username]);
 
   const handleSuggestionClick = (suggestion) => {
     setFormData({...formData, opponent_username: suggestion.username});

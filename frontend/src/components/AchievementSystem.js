@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import {
+  fetchUserBadges,
+  fetchBadges,
+  checkAchievements as checkAchievementsAPI,
+} from '../api/airtable';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+
 
 // Componente principal del sistema de logros
-const AchievementSystem = ({ token, currentUser }) => {
+const AchievementSystem = ({ currentUser }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('my-badges');
   const [userAchievements, setUserAchievements] = useState(null);
@@ -17,27 +20,24 @@ const AchievementSystem = ({ token, currentUser }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
+    if (currentUser) {
       fetchAchievementData();
     }
-  }, [token]);
+  }, [currentUser]);
 
   const fetchAchievementData = async () => {
     setLoading(true);
     try {
-      const [achievementsRes, badgesRes, progressRes, recommendationsRes, leaderboardRes] = await Promise.all([
-        axios.get(`${API}/achievements/me`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API}/achievements/badges`),
-        axios.get(`${API}/achievements/progress`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API}/achievements/recommendations`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API}/achievements/leaderboard`)
+      const [achievements, badges] = await Promise.all([
+        fetchUserBadges(currentUser.id),
+        fetchBadges(),
       ]);
 
-      setUserAchievements(achievementsRes.data);
-      setAllBadges(badgesRes.data);
-      setProgress(progressRes.data);
-      setRecommendations(recommendationsRes.data);
-      setLeaderboard(leaderboardRes.data);
+      setUserAchievements(achievements);
+      setAllBadges(badges);
+      setProgress([]);
+      setRecommendations([]);
+      setLeaderboard([]);
     } catch (error) {
       console.error('Error fetching achievement data:', error);
     }
@@ -46,14 +46,9 @@ const AchievementSystem = ({ token, currentUser }) => {
 
   const checkForNewAchievements = async () => {
     try {
-      const response = await axios.post(`${API}/achievements/check`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.data.new_badges.length > 0) {
-        // Mostrar notificación de nuevos logros
-        showAchievementNotification(response.data);
-        // Refrescar datos
+      const data = await checkAchievementsAPI(currentUser.id);
+      if (data.new_badges.length > 0) {
+        showAchievementNotification(data);
         fetchAchievementData();
       }
     } catch (error) {

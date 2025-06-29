@@ -112,6 +112,7 @@ REACT_APP_BACKEND_URL=http://localhost:8000
 REACT_APP_AIRTABLE_API_KEY=patJZDyKmTtuqHRuJ
 REACT_APP_AIRTABLE_BASE_ID=appFHZ4wPWkDlp00P
 ```
+Si defines las variables de Airtable, el frontend funcionará de forma autónoma sin levantar el backend.
 
 ## 👤 Usuarios por Defecto
 
