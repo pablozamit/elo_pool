@@ -59,24 +59,19 @@ export const loginUser = async (username, password) => {
 
 export const registerUser = async (username, password) => {
   return createRecord('Users', {
-    username,
-    password,
-    elo_rating: 1200,
-    matches_played: 0,
-    matches_won: 0,
-    is_admin: false,
-    is_active: true
+    Username: username,
+    Password: password,
+    "ELO Rating": 1200,
+    "Matches Played": 0,
+    "Matches Won": 0,
+    "Is Admin": false,
+    "Is Active": true
   });
 };
 
 export const fetchMatchesForUser = async (username) => {
   const all = await listRecords('Matches');
   return all.filter(m => m.player1_username === username || m.player2_username === username);
-};
-
-export const fetchPendingMatchesForUser = async (username) => {
-  const all = await listRecords('Matches');
-  return all.filter(m => m.status === 'pending' && (m.player1_username === username || m.player2_username === username));
 };
 
 export const fetchPendingMatchesForUser = async (username) => {
@@ -94,12 +89,12 @@ export const updateMatch = async (id, fields) => {
 
 export const fetchRankings = async () => {
   const users = await listRecords('Users');
-  return users.sort((a, b) => b.elo_rating - a.elo_rating);
+  return users.sort((a, b) => b["ELO Rating"] - a["ELO Rating"]);
 };
 
 export const searchUsers = async (query) => {
   const users = await listRecords('Users');
-  return users.filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
+  return users.filter(u => u.Username?.toLowerCase().includes(query.toLowerCase()));
 };
 
 export const fetchUserBadges = async (userId) => {
