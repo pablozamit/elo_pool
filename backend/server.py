@@ -13,7 +13,7 @@ from passlib.context import CryptContext
 from enum import Enum
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete, and_, or_
-from database import get_db, create_tables, UserDB, MatchDB, UserAchievementDB
+from database import get_db, create_tables, UserDB, MatchDB, UserAchievementDB, AsyncSessionLocal
 import json
 
 # JWT Configuration
@@ -606,7 +606,6 @@ async def startup_event():
     print("✅ Database tables created")
     
     # Create admin user
-    from sqlalchemy.ext.asyncio import AsyncSession
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(UserDB).where(UserDB.username == "admin"))
         admin_user = result.scalar_one_or_none()
