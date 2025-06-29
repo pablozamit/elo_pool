@@ -236,7 +236,20 @@ export const searchUsers = async (query) => {
 
 export const fetchUserBadges = async (userId) => {
   const all = await listRecords('UserBadges');
-  return all.filter((b) => b.user_id === userId);
+  const badges = all.filter((b) => b.user_id === userId);
+  // In this simplified Airtable implementation we don't store the
+  // aggregated achievement stats (level, points, etc.).  The frontend
+  // components however expect an object with a `badges` array and some
+  // additional fields.  To avoid runtime errors when those fields are
+  // missing we return a minimal structure here.
+  return {
+    user_id: userId,
+    badges,
+    total_points: 0,
+    level: 1,
+    experience: 0,
+    next_level_exp: 100,
+  };
 };
 
 export const fetchBadges = async () => {
@@ -244,8 +257,10 @@ export const fetchBadges = async () => {
 };
 
 export const checkAchievements = async (userId) => {
-  const userBadges = await fetchUserBadges(userId);
-  return { new_badges: userBadges };
+  const userAchievements = await fetchUserBadges(userId);
+  // `fetchUserBadges` now returns the minimal achievement structure
+  // so we expose only the newly earned badges array for the check call
+  return { new_badges: userAchievements.badges };
 };
 
 export { denormalizeUser };
