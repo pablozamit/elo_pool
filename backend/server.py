@@ -54,7 +54,6 @@ ELO_WEIGHTS = {
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
-    # email: str # Removed
     password_hash: str
     elo_rating: float = 1200.0
     matches_played: int = 0
@@ -65,7 +64,6 @@ class User(BaseModel):
 
 class UserCreate(BaseModel):
     username: str
-    # email: str # Removed
     password: str
 
     @field_validator('username')
@@ -81,7 +79,6 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
-    # email: str # Removed
     elo_rating: float
     matches_played: int
     matches_won: int
@@ -94,11 +91,9 @@ class UserAdminCreate(UserCreate):
     is_active: Optional[bool] = True
 
 class UserUpdateAdmin(BaseModel):
-    # email: Optional[str] = None # Removed
     elo_rating: Optional[float] = None
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
-    # password: Optional[str] = None # Add if password change is desired
 
 class Match(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -179,31 +174,24 @@ async def get_optional_current_user(credentials: Optional[HTTPAuthorizationCrede
         return None
     try:
         token = credentials.credentials
-        # We need a version of verify_jwt_token that doesn't raise HTTPException
-        # For now, we'll wrap the existing one and catch its specific HTTPExceptions
         try:
             payload = verify_jwt_token(token)
-        except HTTPException as http_exc: # Catch exceptions from verify_jwt_token
-            # Log the error for debugging, but don't re-raise
-            # logger.info(f"JWT verification failed for optional user: {http_exc.detail}")
+        except HTTPException as http_exc:
             return None
 
         user_doc = await db.users.find_one({"id": payload["user_id"]})
         if not user_doc:
             return None
 
-        # Ensure user is active
-        if not user_doc.get("is_active", True): # Default to True if field is missing for older docs
-            # logger.info(f"Optional user found but is inactive: {payload['user_id']}")
+        if not user_doc.get("is_active", True):
             return None
 
         return User(**user_doc)
-    except jwt.ExpiredSignatureError: # This is already handled by verify_jwt_token's HTTPException
+    except jwt.ExpiredSignatureError:
         return None
-    except JWTError: # This is also handled by verify_jwt_token's HTTPException
+    except JWTError:
         return None
     except Exception:
-        # logger.error("Unexpected error in get_optional_current_user", exc_info=True)
         return None
 
 def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchType) -> tuple:
@@ -232,13 +220,10 @@ async def register(user_data: UserCreate):
     existing_user_by_username = await db.users.find_one({"username": user_data.username})
     if existing_user_by_username:
         raise HTTPException(status_code=400, detail="Username already exists")
-
-    # Email check removed
     
     # Create new user
     user = User(
         username=user_data.username,
-        # email=user_data.email, # Removed
         password_hash=hash_password(user_data.password)
     )
     
@@ -251,9 +236,20 @@ async def register(user_data: UserCreate):
 
 @api_router.post("/login")
 async def login(login_data: UserLogin):
+    print(f"Login attempt for username: {login_data.username}")
+    
     user = await db.users.find_one({"username": login_data.username})
-    if not user or not verify_password(login_data.password, user["password_hash"]):
+    if not user:
+        print(f"User not found: {login_data.username}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    print(f"User found: {user['username']}, checking password...")
+    
+    if not verify_password(login_data.password, user["password_hash"]):
+        print("Password verification failed")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    print("Password verified successfully")
     
     token = create_jwt_token(user["id"], user["username"])
     return {
@@ -480,8 +476,6 @@ async def admin_create_user(user_data: UserAdminCreate, admin_user: User = Depen
     if existing_user_by_username:
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    # Email check removed
-
     user_dict = user_data.dict()
     user_dict["password_hash"] = hash_password(user_data.password)
     del user_dict["password"]  # Remove plain password
@@ -508,13 +502,6 @@ async def admin_update_user(user_id: str, user_update_data: UserUpdateAdmin, adm
 
     update_data = user_update_data.dict(exclude_unset=True)
 
-    # # If password is part of UserUpdateAdmin and provided, hash it
-    # if "password" in update_data and update_data["password"]:
-    #     update_data["password_hash"] = hash_password(update_data["password"])
-    #     del update_data["password"]
-    # elif "password" in update_data: # if password field exists but is None/empty
-    #     del update_data["password"]
-
     if update_data:
         await db.users.update_one({"id": user_id}, {"$set": update_data})
 
@@ -526,10 +513,6 @@ async def admin_delete_user(user_id: str, admin_user: User = Depends(get_current
     existing_user = await db.users.find_one({"id": user_id})
     if not existing_user:
         raise HTTPException(status_code=404, detail="User not found")
-
-    # Prevent admin from deleting themselves? (Optional check)
-    # if existing_user["id"] == admin_user.id:
-    #     raise HTTPException(status_code=400, detail="Admin users cannot delete themselves.")
 
     delete_result = await db.users.delete_one({"id": user_id})
     if delete_result.deleted_count == 1:
@@ -560,12 +543,13 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def create_admin_on_startup():
+    print("Checking for admin user...")
     admin_user_exists = await db.users.find_one({"username": "admin"})
     if not admin_user_exists:
+        print("Creating admin user...")
         admin_user = User(
             id=str(uuid.uuid4()),
             username="admin",
-            # email="admin@example.com", # Removed
             password_hash=hash_password("adminpassword"),
             is_admin=True,
             is_active=True,
@@ -577,7 +561,15 @@ async def create_admin_on_startup():
         await db.users.insert_one(admin_user.dict())
         print("Default admin user 'admin' created with password 'adminpassword'.")
     else:
-        print("Admin user 'admin' already exists. No action taken.")
+        print("Admin user 'admin' already exists.")
+        # Verificar que el admin tenga la contraseña correcta
+        if not verify_password("adminpassword", admin_user_exists["password_hash"]):
+            print("Admin password doesn't match, updating...")
+            await db.users.update_one(
+                {"username": "admin"},
+                {"$set": {"password_hash": hash_password("adminpassword")}}
+            )
+            print("Admin password updated.")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
