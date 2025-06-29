@@ -8,16 +8,24 @@
       "config": {
         "distDir": "build"
       }
+    },
+    {
+      "src": "api/main.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "/api/main.py"
+    },
+    {
       "src": "/static/(.*)",
-      "dest": "/static/$1"
+      "dest": "/frontend/static/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/frontend/index.html"
     }
   ],
   "buildCommand": "cd frontend && npm install && npm run build",
