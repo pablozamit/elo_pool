@@ -13,16 +13,16 @@ const headers = {
 // USERS
 const normalizeUser = (u) => ({
   id: u.id,
-  username: u.Username,
-  password: u.Password,
-  elo_rating: u['ELO Rating'],
-  matches_played: u['Matches Played'],
-  matches_won: u['Matches Won'],
-  is_admin: u['Is Admin'],
-  is_active: u['Is Active'],
-  created_at: u['Created At'],
-  win_rate: u['Win Rate'],
-  recent_activity: u['Recent Activity'],
+  username: u.Username || u.username,
+  password: u.Password || u.password,
+  elo_rating: u['ELO Rating'] ?? u.elo_rating,
+  matches_played: u['Matches Played'] ?? u.matches_played,
+  matches_won: u['Matches Won'] ?? u.matches_won,
+  is_admin: u['Is Admin'] ?? u.is_admin,
+  is_active: u['Is Active'] ?? u.is_active,
+  created_at: u['Created At'] ?? u.created_at,
+  win_rate: u['Win Rate'] ?? u.win_rate,
+  recent_activity: u['Recent Activity'] ?? u.recent_activity,
 });
 
 const userFieldMap = {
@@ -142,6 +142,7 @@ const normalizers = {
   UserBadges: normalizeUserBadge,
 };
 
+// CORE OPERATIONS
 export const listRecords = async (table, params = '') => {
   const url = `${BASE_URL}/${table}${params}`;
   const response = await axios.get(url, { headers });
@@ -180,20 +181,14 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-
-  console.log('Intentando login con:', username, password);
-  console.log('Usuarios disponibles:', users);
-
   const user = users.find(
     (u) => u.username === username && u.password === password
   );
 
   if (!user) {
-    console.log('No se encontró coincidencia exacta.');
     throw new Error('Invalid credentials');
   }
 
-  console.log('Usuario autenticado:', user);
   return user;
 };
 
