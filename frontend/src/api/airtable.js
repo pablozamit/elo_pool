@@ -40,8 +40,20 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-  const user = users.find(u => u.username === username && u.password === password);
-  if (!user) throw new Error('Invalid credentials');
+
+  console.log('Intentando login con:', username, password);
+  console.log('Usuarios disponibles:', users);
+
+  const user = users.find(
+    (u) => u.Username === username && u.Password === password
+  );
+
+  if (!user) {
+    console.log('No se encontró coincidencia exacta.');
+    throw new Error('Invalid credentials');
+  }
+
+  console.log('Usuario autenticado:', user);
   return user;
 };
 
