@@ -14,6 +14,7 @@ import {
   createRecord,
   updateRecord,
   deleteRecord,
+  denormalizeUser,
 } from './api/airtable';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
@@ -563,15 +564,18 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await createRecord('Users', {
-        username: createFormData.username,
-        password: createFormData.password,
-        is_admin: createFormData.is_admin,
-        is_active: createFormData.is_active,
-        elo_rating: 1200,
-        matches_played: 0,
-        matches_won: 0,
-      });
+      await createRecord(
+        'Users',
+        denormalizeUser({
+          username: createFormData.username,
+          password: createFormData.password,
+          is_admin: createFormData.is_admin,
+          is_active: createFormData.is_active,
+          elo_rating: 1200,
+          matches_played: 0,
+          matches_won: 0,
+        })
+      );
       setSuccess('Usuario creado exitosamente');
       setCreateFormData({
         username: '',
@@ -593,7 +597,7 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await updateRecord('Users', userId, updateData);
+      await updateRecord('Users', userId, denormalizeUser(updateData));
       setSuccess('Usuario actualizado exitosamente');
       setEditingUser(null);
       fetchUsers();
@@ -925,6 +929,7 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
 );
 
 const SubmitMatchTab = ({ onMatchSubmitted }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     opponent_username: '',
     match_type: 'rey_mesa',
@@ -952,7 +957,17 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
     setSuccess('');
 
     try {
-      await airtableCreateMatch(formData);
+      const matchPayload = {
+        player1_username: user.username,
+        player2_username: formData.opponent_username,
+        match_type: formData.match_type,
+        result: formData.result,
+        winner_id: formData.won ? user.username : formData.opponent_username,
+        status: 'pending',
+        submitted_by: user.username,
+        created_at: new Date().toISOString(),
+      };
+      await airtableCreateMatch(matchPayload);
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
       setFormData({
         opponent_username: '',
