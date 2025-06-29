@@ -108,8 +108,7 @@ JWT_SECRET="your_super_secret_key"
 
 Configurar en `frontend/.env` (puedes partir de `frontend/.env.example`):
 ```
-REACT_APP_BACKEND_URL=http://localhost:8000
-REACT_APP_AIRTABLE_API_KEY=patJZDyKmTtuqHRuJ
+REACT_APP_AIRTABLE_API_KEY=patd5NZCLRKn8aLeh.f946e3c8a6d87690dd4c0d39e3b51d9822bee9b27f455c7b1947cea7dc619b45
 REACT_APP_AIRTABLE_BASE_ID=appFHZ4wPWkDlp00P
 ```
 Si defines las variables de Airtable, el frontend funcionará de forma autónoma sin levantar el backend.
