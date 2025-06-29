@@ -10,22 +10,31 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
+const normalizeUser = (u) => ({
+  ...u,
+  username: u.username || u.Username,
+  password: u.password || u.Password,
+});
+
 export const listRecords = async (table, params = '') => {
   const url = `${BASE_URL}/${table}${params}`;
   const res = await axios.get(url, { headers });
-  return res.data.records.map(r => ({ id: r.id, ...r.fields }));
+  const records = res.data.records.map((r) => ({ id: r.id, ...r.fields }));
+  return table === 'Users' ? records.map(normalizeUser) : records;
 };
 
 export const createRecord = async (table, fields) => {
   const url = `${BASE_URL}/${table}`;
   const res = await axios.post(url, { fields }, { headers });
-  return { id: res.data.id, ...res.data.fields };
+  const record = { id: res.data.id, ...res.data.fields };
+  return table === 'Users' ? normalizeUser(record) : record;
 };
 
 export const updateRecord = async (table, id, fields) => {
   const url = `${BASE_URL}/${table}/${id}`;
   const res = await axios.patch(url, { fields }, { headers });
-  return { id: res.data.id, ...res.data.fields };
+  const record = { id: res.data.id, ...res.data.fields };
+  return table === 'Users' ? normalizeUser(record) : record;
 };
 
 export const deleteRecord = async (table, id) => {
@@ -40,20 +49,32 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-  const user = users.find(u => u.username === username && u.password === password);
-  if (!user) throw new Error('Invalid credentials');
+
+  console.log('Intentando login con:', username, password);
+  console.log('Usuarios disponibles:', users);
+
+  const user = users.find(
+    (u) => u.username === username && u.password === password
+  );
+
+  if (!user) {
+    console.log('No se encontró coincidencia exacta.');
+    throw new Error('Invalid credentials');
+  }
+
+  console.log('Usuario autenticado:', user);
   return user;
 };
 
 export const registerUser = async (username, password) => {
   return createRecord('Users', {
-    username,
-    password,
+    Username: username,
+    Password: password,
     elo_rating: 1200,
     matches_played: 0,
     matches_won: 0,
     is_admin: false,
-    is_active: true
+    is_active: true,
   });
 };
 
