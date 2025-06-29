@@ -45,7 +45,7 @@ export const loginUser = async (username, password) => {
   console.log('Usuarios disponibles:', users);
 
   const user = users.find(
-    (u) => u.username === username && u.password === password
+    (u) => u.Username === username && u.Password === password
   );
 
   if (!user) {
@@ -72,6 +72,11 @@ export const registerUser = async (username, password) => {
 export const fetchMatchesForUser = async (username) => {
   const all = await listRecords('Matches');
   return all.filter(m => m.player1_username === username || m.player2_username === username);
+};
+
+export const fetchPendingMatchesForUser = async (username) => {
+  const all = await listRecords('Matches');
+  return all.filter(m => m.status === 'pending' && (m.player1_username === username || m.player2_username === username));
 };
 
 export const fetchPendingMatchesForUser = async (username) => {
