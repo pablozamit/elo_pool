@@ -70,11 +70,11 @@ export const registerUser = async (username, password) => {
   return createRecord('Users', {
     Username: username,
     Password: password,
-    elo_rating: 1200,
-    matches_played: 0,
-    matches_won: 0,
-    is_admin: false,
-    is_active: true,
+    "ELO Rating": 1200,
+    "Matches Played": 0,
+    "Matches Won": 0,
+    "Is Admin": false,
+    "Is Active": true
   });
 };
 
@@ -98,12 +98,12 @@ export const updateMatch = async (id, fields) => {
 
 export const fetchRankings = async () => {
   const users = await listRecords('Users');
-  return users.sort((a, b) => b.elo_rating - a.elo_rating);
+  return users.sort((a, b) => b["ELO Rating"] - a["ELO Rating"]);
 };
 
 export const searchUsers = async (query) => {
   const users = await listRecords('Users');
-  return users.filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
+  return users.filter(u => u.username?.toLowerCase().includes(query.toLowerCase()));
 };
 
 export const fetchUserBadges = async (userId) => {
