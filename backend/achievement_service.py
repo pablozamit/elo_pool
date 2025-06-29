@@ -1,37 +1,93 @@
 from datetime import datetime
 from typing import Dict, List
+import uuid
+
+from sqlalchemy import select, or_, and_
+from sqlalchemy.orm import Session
 
 from .achievements import (
     AchievementSystem, Badge, UserBadge, UserAchievements,
     BADGES_CATALOG, get_user_title
 )
+from .database import UserDB, MatchDB, UserAchievementDB
 
 achievement_system = AchievementSystem()
 
-async def get_user_achievements(db, user_id: str) -> UserAchievements:
-    achievements_doc = await db.user_achievements.find_one({"user_id": user_id})
-    if not achievements_doc:
-        new_achievements = UserAchievements(user_id=user_id)
-        await db.user_achievements.insert_one(new_achievements.dict())
-        return new_achievements
-    return UserAchievements(**achievements_doc)
+async def get_user_achievements(db: Session, user_id: str) -> UserAchievements:
+    result = await db.execute(
+        select(UserAchievementDB).where(UserAchievementDB.user_id == user_id)
+    )
+    rows = result.scalars().all()
 
-async def calculate_user_stats(db, user_id: str) -> Dict:
-    user = await db.users.find_one({"id": user_id})
+    badges = [
+        UserBadge(
+            badge_id=row.achievement_id,
+            earned_at=row.earned_at,
+            progress=float(row.progress),
+        )
+        for row in rows
+    ]
+
+    total_points = sum(
+        achievement_system.badges[b.badge_id].points
+        for b in badges
+        if b.badge_id in achievement_system.badges
+    )
+    experience = total_points
+    level, next_level_exp = achievement_system.calculate_level(experience)
+
+    return UserAchievements(
+        user_id=user_id,
+        badges=badges,
+        total_points=total_points,
+        level=level,
+        experience=experience,
+        next_level_exp=next_level_exp,
+    )
+
+async def calculate_user_stats(db: Session, user_id: str) -> Dict:
+    result = await db.execute(select(UserDB).where(UserDB.id == user_id))
+    user = result.scalar_one_or_none()
     if not user:
         return {}
+
     stats = {
-        "matches_played": user.get("matches_played", 0),
-        "matches_won": user.get("matches_won", 0),
-        "elo_rating": user.get("elo_rating", 1200),
-        "created_at": user.get("created_at"),
+        "matches_played": user.matches_played,
+        "matches_won": user.matches_won,
+        "elo_rating": user.elo_rating,
+        "created_at": user.created_at,
     }
-    matches = await db.matches.find({
-        "$or": [{"player1_id": user_id}, {"player2_id": user_id}],
-        "status": "confirmed",
-    }).to_list(length=None)
+
+    result = await db.execute(
+        select(MatchDB).where(
+            and_(
+                or_(MatchDB.player1_id == user_id, MatchDB.player2_id == user_id),
+                MatchDB.status == "confirmed",
+            )
+        )
+    )
+    matches = result.scalars().all()
     stats["total_matches"] = len(matches)
-    stats["total_wins"] = len([m for m in matches if m["winner_id"] == user_id])
+    stats["total_wins"] = len([m for m in matches if m.winner_id == user_id])
+
+    current_streak = 0
+    max_streak = 0
+    for m in sorted(matches, key=lambda x: x.confirmed_at or x.created_at):
+        if m.winner_id == user_id:
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
+        else:
+            current_streak = 0
+    stats["win_streak"] = current_streak
+    stats["max_win_streak"] = max_streak
+
+    for m in matches:
+        key_played = f"{m.match_type}_played"
+        stats[key_played] = stats.get(key_played, 0) + 1
+        if m.winner_id == user_id:
+            key_wins = f"{m.match_type}_wins"
+            stats[key_wins] = stats.get(key_wins, 0) + 1
+
     return stats
 
 async def check_user_achievements(db, user_id: str) -> Dict:
@@ -63,9 +119,17 @@ async def check_user_achievements(db, user_id: str) -> Dict:
     user_achievements.next_level_exp = next_level_exp
 
     if new_badges:
-        await db.user_achievements.update_one(
-            {"user_id": user_id}, {"$set": user_achievements.dict()}, upsert=True
-        )
+        for badge in new_badges:
+            db.add(
+                UserAchievementDB(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    achievement_id=badge.id,
+                    earned_at=datetime.utcnow(),
+                    progress=100,
+                )
+            )
+        await db.flush()
 
     return {
         "new_badges": new_badges,
