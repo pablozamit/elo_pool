@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: la-catrina-backend
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: JWT_SECRET
+        value: "tu_clave_secreta_super_segura_de_32_caracteres_aqui"
