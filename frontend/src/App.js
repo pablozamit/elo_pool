@@ -14,6 +14,7 @@ import {
   createRecord,
   updateRecord,
   deleteRecord,
+  denormalizeUser,
 } from './api/airtable';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
@@ -147,11 +148,11 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
             <div className="logo-icon">🎱</div>
             <div>
               <h1 className="club-name">La Catrina</h1>
-              <p className="club-subtitle">Pool Club</p>
+              <p className="club-subtitle">{t('billiardClub')}</p>
             </div>
           </div>
           <h2 className="premium-subtitle text-xl mb-2">
-            {isLoginMode ? 'Acceso Exclusivo' : 'Únete al Club'}
+            {isLoginMode ? t('loginTitle') : t('registerTitle')}
           </h2>
           <p className="text-sm text-gray-400">
             {isLoginMode ? 'Ingresa a tu cuenta premium' : 'Crea tu cuenta de miembro'}
@@ -172,7 +173,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="form-group">
             <label className="form-label">
-              Usuario
+              {t('usernameLabel')}
             </label>
             <input
               type="text"
@@ -186,7 +187,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
 
           <div className="form-group">
             <label className="form-label">
-              Contraseña
+              {t('passwordLabel')}
             </label>
             <input
               type="password"
@@ -206,10 +207,10 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
             {formLoading ? (
               <div className="flex items-center justify-center">
                 <div className="loading-spinner mr-2"></div>
-                Procesando...
+                {t('loading')}
               </div>
             ) : (
-              isLoginMode ? 'Iniciar Sesión' : 'Crear Cuenta'
+              isLoginMode ? t('login') : t('register')
             )}
           </button>
         </form>
@@ -219,7 +220,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
             onClick={handleSwitchMode}
             className="text-yellow-400 hover:text-yellow-300 font-medium transition-colors"
           >
-            {isLoginMode ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+            {isLoginMode ? t('noAccount') : t('alreadyAccount')}
           </button>
         </div>
       </div>
@@ -402,14 +403,14 @@ const Dashboard = () => {
               <div className="logo-icon">🎱</div>
               <div>
                 <h1 className="club-name">La Catrina</h1>
-                <p className="club-subtitle">Pool Club</p>
+                <p className="club-subtitle">{t('billiardClub')}</p>
               </div>
             </div>
             
             {user && (
               <div className="hidden lg:block text-right">
                 <div className="text-sm text-gray-300">
-                  Bienvenido, <span className="text-yellow-400 font-semibold">{user.username}</span>
+                  {t('helloUser', { username: user.username })}
                 </div>
                 <div className="flex items-center justify-end gap-4 mt-1">
                   <div className="elo-badge">
@@ -437,7 +438,7 @@ const Dashboard = () => {
                   onClick={logout}
                   className="btn-secondary"
                 >
-                  Cerrar Sesión
+                  {t('logout')}
                 </button>
               ) : (
                 <div className="space-x-2">
@@ -445,13 +446,13 @@ const Dashboard = () => {
                     onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
                     className="btn-premium"
                   >
-                    Iniciar Sesión
+                    {t('login')}
                   </button>
                   <button
                     onClick={() => { setShowLoginView(true); setLoginViewMode('register'); }}
                     className="btn-secondary"
                   >
-                    Registrarse
+                    {t('register')}
                   </button>
                 </div>
               )}
@@ -463,19 +464,19 @@ const Dashboard = () => {
       {/* Navigation & Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="premium-nav mb-8 justify-center">
-          <TabButton tab="rankings" label="Rankings" icon="🏆" />
-          <TabButton tab="submit" label="Subir Resultado" icon="📝" disabled={!user} />
-          <TabButton 
-            tab="pending" 
-            label="Pendientes" 
-            icon="⏳" 
+          <TabButton tab="rankings" label={t('rankings')} icon="🏆" />
+          <TabButton tab="submit" label={t('submitResult')} icon="📝" disabled={!user} />
+          <TabButton
+            tab="pending"
+            label={t('pendingMatches')}
+            icon="⏳"
             disabled={!user}
             count={pendingMatches.length}
           />
-          <TabButton tab="history" label="Historial" icon="📊" disabled={!user} />
+          <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
           <TabButton tab="achievements" label="Logros" icon="🎖️" disabled={!user} />
           {user && user.is_admin && (
-            <TabButton tab="admin" label="Admin" icon="⚙️" />
+            <TabButton tab="admin" label={t('admin')} icon="⚙️" />
           )}
         </div>
 
@@ -563,15 +564,18 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await createRecord('Users', {
-        username: createFormData.username,
-        password: createFormData.password,
-        is_admin: createFormData.is_admin,
-        is_active: createFormData.is_active,
-        elo_rating: 1200,
-        matches_played: 0,
-        matches_won: 0,
-      });
+      await createRecord(
+        'Users',
+        denormalizeUser({
+          username: createFormData.username,
+          password: createFormData.password,
+          is_admin: createFormData.is_admin,
+          is_active: createFormData.is_active,
+          elo_rating: 1200,
+          matches_played: 0,
+          matches_won: 0,
+        })
+      );
       setSuccess('Usuario creado exitosamente');
       setCreateFormData({
         username: '',
@@ -593,7 +597,7 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await updateRecord('Users', userId, updateData);
+      await updateRecord('Users', userId, denormalizeUser(updateData));
       setSuccess('Usuario actualizado exitosamente');
       setEditingUser(null);
       fetchUsers();
@@ -743,7 +747,7 @@ const AdminTab = () => {
       {loading && (
         <div className="text-center">
           <div className="loading-spinner mx-auto"></div>
-          <p className="text-gray-400 mt-4">Procesando...</p>
+          <p className="text-gray-400 mt-4">{t('loading')}</p>
         </div>
       )}
     </div>
@@ -925,6 +929,7 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
 );
 
 const SubmitMatchTab = ({ onMatchSubmitted }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     opponent_username: '',
     match_type: 'rey_mesa',
@@ -952,7 +957,17 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
     setSuccess('');
 
     try {
-      await airtableCreateMatch(formData);
+      const matchPayload = {
+        player1_username: user.username,
+        player2_username: formData.opponent_username,
+        match_type: formData.match_type,
+        result: formData.result,
+        winner_id: formData.won ? user.username : formData.opponent_username,
+        status: 'pending',
+        submitted_by: user.username,
+        created_at: new Date().toISOString(),
+      };
+      await airtableCreateMatch(matchPayload);
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
       setFormData({
         opponent_username: '',
@@ -1024,7 +1039,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
 
       <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
         <div className="form-group relative">
-          <label className="form-label">Oponente</label>
+          <label className="form-label">{t('opponent')}</label>
           <input
             type="text"
             required
@@ -1037,7 +1052,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
             autoComplete="off"
           />
           {isSearchingOpponent && (
-            <p className="text-xs text-gray-400 mt-1">Buscando jugadores...</p>
+            <p className="text-xs text-gray-400 mt-1">{t('loading')}</p>
           )}
           {opponentSuggestions.length > 0 && (
             <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
@@ -1058,7 +1073,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Tipo de Partida</label>
+          <label className="form-label">{t('matchType')}</label>
           <select
             required
             className="form-input"
@@ -1072,7 +1087,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Resultado</label>
+          <label className="form-label">{t('result')}</label>
           <input
             type="text"
             required
@@ -1084,7 +1099,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
         </div>
 
         <div className="form-group">
-          <label className="form-label">¿Ganaste el partido?</label>
+          <label className="form-label">{t('didYouWin')}</label>
           <div className="flex space-x-6 mt-2">
             <label className="flex items-center text-gray-300 cursor-pointer">
               <input
@@ -1094,7 +1109,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
                 onChange={() => setFormData({...formData, won: true})}
                 className="mr-3 accent-yellow-500"
               />
-              <span className="text-green-400 font-semibold">Victoria</span>
+              <span className="text-green-400 font-semibold">{t('yes')}</span>
             </label>
             <label className="flex items-center text-gray-300 cursor-pointer">
               <input
@@ -1104,7 +1119,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
                 onChange={() => setFormData({...formData, won: false})}
                 className="mr-3 accent-yellow-500"
               />
-              <span className="text-red-400 font-semibold">Derrota</span>
+              <span className="text-red-400 font-semibold">{t('no')}</span>
             </label>
           </div>
         </div>
@@ -1117,10 +1132,10 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
           {loading ? (
             <div className="flex items-center justify-center">
               <div className="loading-spinner mr-2"></div>
-              Enviando...
+              {t('loading')}
             </div>
           ) : (
-            'Enviar Resultado'
+            t('submit')
           )}
         </button>
       </form>
@@ -1131,7 +1146,7 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
 const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
   <div className="space-y-6">
     <div className="text-center">
-      <h2 className="premium-title text-3xl mb-2">Partidos Pendientes</h2>
+      <h2 className="premium-title text-3xl mb-2">{t('pendingMatches')}</h2>
       <p className="text-gray-400">Confirma o rechaza los resultados enviados</p>
     </div>
     
@@ -1178,13 +1193,13 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
                   onClick={() => onConfirm(match.id)}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  ✓ Confirmar
+                  ✓ {t('confirm')}
                 </button>
                 <button
                   onClick={() => onReject(match.id)}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  ✗ Rechazar
+                  ✗ {t('reject')}
                 </button>
               </div>
             </div>
@@ -1198,7 +1213,7 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
 const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
   <div className="space-y-6">
     <div className="text-center">
-      <h2 className="premium-title text-3xl mb-2">Historial de Partidos</h2>
+      <h2 className="premium-title text-3xl mb-2">{t('matchHistory')}</h2>
       <p className="text-gray-400">Tu trayectoria en el club</p>
     </div>
     
@@ -1214,9 +1229,9 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
           <thead>
             <tr>
               <th>Fecha</th>
-              <th>Oponente</th>
-              <th>Tipo</th>
-              <th>Resultado</th>
+              <th>{t('opponent')}</th>
+              <th>{t('matchType')}</th>
+              <th>{t('result')}</th>
               <th>Estado</th>
               <th>Perfil</th>
             </tr>
@@ -1286,7 +1301,7 @@ const AppContent = () => {
         <div className="text-center">
           <div className="loading-spinner mx-auto mb-6"></div>
           <h2 className="premium-title text-2xl mb-2">La Catrina Pool Club</h2>
-          <p className="text-gray-400">Cargando aplicación...</p>
+          <p className="text-gray-400">{t('loading')}</p>
         </div>
       </div>
     );
