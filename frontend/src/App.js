@@ -1,8 +1,8 @@
-import React, { useState, useEffect, createContext, useContext, Suspense } from 'react'; // Added Suspense for local fallbacks if needed
+import React, { useState, useEffect, createContext, useContext, Suspense } from 'react';
 import './App.css';
 import axios from 'axios';
-import LanguageSwitcher from './LanguageSwitcher'; // Import LanguageSwitcher
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import LanguageSwitcher from './LanguageSwitcher';
+import { useTranslation } from 'react-i18next';
 import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
@@ -29,7 +29,7 @@ const AuthProvider = ({ children }) => {
         } catch (error) {
           localStorage.removeItem('token');
           setToken(null);
-          setUser(null); // Explicitly set user to null on error
+          setUser(null);
           console.error("Token verification failed:", error);
         }
       }
@@ -51,11 +51,9 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (username, password) => { // Removed email from parameters
+  const register = async (username, password) => {
     try {
-      // Assuming backend returns the newly created user on successful registration,
-      // but we will prompt them to login manually.
-      await axios.post(`${API}/register`, { username, password }); // Removed email from payload
+      await axios.post(`${API}/register`, { username, password });
       return { success: true, message: "¡Registro exitoso! Por favor, inicia sesión." };
     } catch (error) {
       return { success: false, error: error.response?.data?.detail || 'Error de registro' };
@@ -69,7 +67,6 @@ const AuthProvider = ({ children }) => {
   };
 
   return (
-    // Pass setToken and setUser if needed by any component directly, though unlikely for this app structure
     <AuthContext.Provider value={{ user, token, login, register, logout, loading, setToken, setUser }}>
       {children}
     </AuthContext.Provider>
@@ -86,21 +83,20 @@ const useAuth = () => {
 
 // Components
 const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
-  const { t } = useTranslation(); // Initialize useTranslation
+  const { t } = useTranslation();
   const [isLoginMode, setIsLoginMode] = useState(initialMode === 'login');
   const [formData, setFormData] = useState({
     username: '',
-    // email: '', // Removed email from formData
     password: ''
   });
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [formLoading, setFormLoading] = useState(false);
-  const { login, register: authRegister } = useAuth(); // Renamed register to authRegister
+  const { login, register: authRegister } = useAuth();
 
   useEffect(() => {
     setIsLoginMode(initialMode === 'login');
-    setError(''); // Clear error/message when mode changes via prop
+    setError('');
     setMessage('');
   }, [initialMode]);
 
@@ -116,15 +112,14 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
         setError(result.error);
       } else {
         if (onLoginSuccess) onLoginSuccess();
-        // AuthProvider handles user state, Dashboard useEffect will hide this form.
       }
-    } else { // Register mode
-      const result = await authRegister(formData.username, formData.password); // Removed formData.email
+    } else {
+      const result = await authRegister(formData.username, formData.password);
       if (result.success) {
-        setIsLoginMode(true); // Switch to login view
-        setFormData({ username: '', password: '' }); // Clear form, removed email
+        setIsLoginMode(true);
+        setFormData({ username: '', password: '' });
         setMessage(result.message || '¡Registro exitoso! Por favor, inicia sesión.');
-        if (onSwitchMode) onSwitchMode('login'); // Inform parent
+        if (onSwitchMode) onSwitchMode('login');
       } else {
         setError(result.error);
       }
@@ -136,75 +131,93 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
     setIsLoginMode(!isLoginMode);
     setError('');
     setMessage('');
-    setFormData({ username: '', password: '' }); // Clear form on mode switch, removed email
+    setFormData({ username: '', password: '' });
     if (onSwitchMode) onSwitchMode(!isLoginMode ? 'register' : 'login');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-800 to-green-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      <div className="app-background"></div>
+      
+      <div className="premium-form w-full max-w-md fade-in-up">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">🎱 {t('billiardClub')}</h1>
-          <p className="text-gray-600">
-            {isLoginMode ? t('loginTitle') : t('registerTitle')} {/* Assuming new keys for these titles */}
+          <div className="logo-container justify-center mb-6">
+            <div className="logo-icon">🎱</div>
+            <div>
+              <h1 className="club-name">Elite Billiards</h1>
+              <p className="club-subtitle">Premium Club</p>
+            </div>
+          </div>
+          <h2 className="premium-subtitle text-xl mb-2">
+            {isLoginMode ? 'Acceso Exclusivo' : 'Únete al Club'}
+          </h2>
+          <p className="text-sm text-gray-400">
+            {isLoginMode ? 'Ingresa a tu cuenta premium' : 'Crea tu cuenta de miembro'}
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">
+          <div className="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-4 text-sm">
             {error}
           </div>
         )}
         {message && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 text-sm">
+          <div className="bg-green-900/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg mb-4 text-sm">
             {message}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('usernameLabel')}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="form-group">
+            <label className="form-label">
+              Usuario
             </label>
             <input
               type="text"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="form-input"
               value={formData.username}
               onChange={(e) => setFormData({...formData, username: e.target.value})}
+              placeholder="Ingresa tu usuario"
             />
           </div>
 
-          {/* Email input field removed */}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('passwordLabel')}
+          <div className="form-group">
+            <label className="form-label">
+              Contraseña
             </label>
             <input
               type="password"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="form-input"
               value={formData.password}
               onChange={(e) => setFormData({...formData, password: e.target.value})}
+              placeholder="Ingresa tu contraseña"
             />
           </div>
 
           <button
             type="submit"
             disabled={formLoading}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-200 disabled:opacity-50"
+            className="btn-premium w-full"
           >
-            {formLoading ? t('loading') : (isLoginMode ? t('login') : t('register'))}
+            {formLoading ? (
+              <div className="flex items-center justify-center">
+                <div className="loading-spinner mr-2"></div>
+                Procesando...
+              </div>
+            ) : (
+              isLoginMode ? 'Iniciar Sesión' : 'Crear Cuenta'
+            )}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-8 text-center">
           <button
             onClick={handleSwitchMode}
-            className="text-green-600 hover:text-green-800 font-medium"
+            className="text-yellow-400 hover:text-yellow-300 font-medium transition-colors"
           >
-            {isLoginMode ? <>{t('noAccount')} {t('register')}</> : <>{t('alreadyAccount')} {t('login')}</>}
+            {isLoginMode ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
           </button>
         </div>
       </div>
@@ -220,30 +233,26 @@ const Dashboard = () => {
   const [achievementNotifications, setAchievementNotifications] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [actionError, setActionError] = useState('');
-  // const [dashboardLoading, setDashboardLoading] = useState(false); // Optional: for content loading indication
   const { user, token, logout } = useAuth();
-  const { t } = useTranslation(); // Initialize useTranslation for Dashboard
+  const { t } = useTranslation();
 
   const [showLoginView, setShowLoginView] = useState(false);
-  const [loginViewMode, setLoginViewMode] = useState('login'); // 'login' or 'register'
+  const [loginViewMode, setLoginViewMode] = useState('login');
 
-  // Fetch rankings - always available
+  // Fetch rankings
   const fetchRankings = async () => {
-    // setDashboardLoading(true);
     try {
       const response = await axios.get(`${API}/rankings`);
       setRankings(response.data);
     } catch (error) {
       console.error('Error fetching rankings:', error);
-      setRankings([]); // Clear on error
+      setRankings([]);
     }
-    // setDashboardLoading(false);
   };
 
   // Fetch user-specific matches
   const fetchMatches = async () => {
     if (!token) return;
-    // setDashboardLoading(true);
     try {
       const response = await axios.get(`${API}/matches/history`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -253,13 +262,11 @@ const Dashboard = () => {
       console.error('Error fetching matches:', error);
       setMatches([]);
     }
-    // setDashboardLoading(false);
   };
 
   // Fetch user-specific pending matches
   const fetchPendingMatches = async () => {
     if (!token) return;
-    // setDashboardLoading(true);
     try {
       const response = await axios.get(`${API}/matches/pending`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -269,7 +276,6 @@ const Dashboard = () => {
       console.error('Error fetching pending matches:', error);
       setPendingMatches([]);
     }
-    // setDashboardLoading(false);
   };
 
   // Check for new achievements
@@ -289,27 +295,23 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchRankings(); // Fetch rankings on initial load & user change
+    fetchRankings();
     if (user && token) {
-      setShowLoginView(false); // Hide login form if user is now present
+      setShowLoginView(false);
       fetchMatches();
       fetchPendingMatches();
-      checkAchievements(); // Check for achievements on login
-      // If user just logged in and was on a disabled tab, switch to rankings
+      checkAchievements();
       if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements')) {
         setActiveTab('rankings');
       }
     } else {
-      // User is null, clear sensitive data
       setMatches([]);
       setPendingMatches([]);
-      // If an authenticated tab was active, switch to rankings
       if (activeTab !== 'rankings') {
           setActiveTab('rankings');
       }
     }
-  }, [user, token]); // Rerun when user or token changes
-
+  }, [user, token]);
 
   const confirmMatch = async (matchId) => {
     if (!token) return;
@@ -317,10 +319,10 @@ const Dashboard = () => {
       await axios.post(`${API}/matches/${matchId}/confirm`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchPendingMatches(); // Refresh relevant data
-      fetchRankings();      // ELO changes
-      fetchMatches();       // History updates
-      checkAchievements();  // Check for new achievements
+      fetchPendingMatches();
+      fetchRankings();
+      fetchMatches();
+      checkAchievements();
     } catch (error) {
       console.error('Error confirming match:', error);
       setActionError('Error confirming match');
@@ -334,7 +336,7 @@ const Dashboard = () => {
       await axios.post(`${API}/matches/${matchId}/reject`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchPendingMatches(); // Refresh pending matches
+      fetchPendingMatches();
     } catch (error) {
       console.error('Error rejecting match:', error);
       setActionError('Error rejecting match');
@@ -342,28 +344,28 @@ const Dashboard = () => {
     }
   };
 
-  const TabButton = ({ tab, label, icon, disabled = false }) => (
+  const TabButton = ({ tab, label, icon, disabled = false, count = null }) => (
     <button
       onClick={() => {
         if (disabled) {
-          // Optionally show a message or redirect to login
           setShowLoginView(true);
           setLoginViewMode('login');
         } else {
           setActiveTab(tab);
         }
       }}
-      disabled={disabled && activeTab === tab} // Prevent clicking if already active & disabled
-      className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors ${
-        activeTab === tab && !disabled
-          ? 'bg-green-600 text-white'
-          : disabled
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' // Visual style for disabled
-            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-      }`}
+      disabled={disabled && activeTab === tab}
+      className={`nav-button ${activeTab === tab && !disabled ? 'active' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
-      <span>{icon}</span>
-      <span className="hidden sm:inline">{label}</span>
+      <span className="text-lg">{icon}</span>
+      <span className="hidden sm:inline">
+        {label}
+        {count !== null && count > 0 && (
+          <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+            {count}
+          </span>
+        )}
+      </span>
     </button>
   );
 
@@ -374,14 +376,15 @@ const Dashboard = () => {
         onSwitchMode={(mode) => setLoginViewMode(mode)}
         onLoginSuccess={() => {
           setShowLoginView(false);
-          // Data fetching is handled by Dashboard's useEffect on user/token change
         }}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen relative">
+      <div className="app-background"></div>
+      
       {/* Achievement Notifications */}
       {achievementNotifications.length > 0 && (
         <AchievementNotification
@@ -402,48 +405,63 @@ const Dashboard = () => {
       )}
 
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="premium-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">🎱 {t('billiardClub')}</h1>
-              {user && (
-                <div className="hidden sm:block text-sm text-gray-500">
-                  {t('helloUser', { username: user.username })} - {t('eloRating')}: {user.elo_rating?.toFixed(1)}
+          <div className="flex justify-between items-center h-20">
+            <div className="logo-container">
+              <div className="logo-icon">🎱</div>
+              <div>
+                <h1 className="club-name">Elite Billiards</h1>
+                <p className="club-subtitle">Premium Club</p>
+              </div>
+            </div>
+            
+            {user && (
+              <div className="hidden lg:block text-right">
+                <div className="text-sm text-gray-300">
+                  Bienvenido, <span className="text-yellow-400 font-semibold">{user.username}</span>
+                </div>
+                <div className="flex items-center justify-end gap-4 mt-1">
+                  <div className="elo-badge">
+                    ELO: {user.elo_rating?.toFixed(0)}
+                  </div>
                   {user.is_admin && (
-                    <span className="ml-2 text-sm font-semibold text-purple-600">({t('admin')})</span>
+                    <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                      ADMIN
+                    </span>
                   )}
                   <button
                     onClick={() => setSelectedPlayer({ id: user.id, username: user.username })}
-                    className="ml-2 text-blue-600 hover:text-blue-800 text-sm underline"
+                    className="text-yellow-400 hover:text-yellow-300 text-sm underline transition-colors"
                   >
-                    Ver mi perfil
+                    Mi Perfil
                   </button>
                 </div>
-              )}
-            </div>
-            <div className="flex items-center space-x-4"> {/* Group for right-side items */}
+              </div>
+            )}
+
+            <div className="flex items-center space-x-4">
               <LanguageSwitcher />
               {user ? (
                 <button
                   onClick={logout}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  className="btn-secondary"
                 >
-                  {t('logout')}
+                  Cerrar Sesión
                 </button>
               ) : (
-                <div className="space-x-2"> {/* This div is for login/register buttons when no user */}
+                <div className="space-x-2">
                   <button
                     onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                    className="btn-premium"
                   >
-                    {t('login')}
+                    Iniciar Sesión
                   </button>
                   <button
                     onClick={() => { setShowLoginView(true); setLoginViewMode('register'); }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                    className="btn-secondary"
                   >
-                    {t('register')}
+                    Registrarse
                   </button>
                 </div>
               )}
@@ -453,26 +471,25 @@ const Dashboard = () => {
       </div>
 
       {/* Navigation & Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-wrap gap-2 mb-6">
-          <TabButton tab="rankings" label={t('rankings')} icon="🏆" />
-          <TabButton tab="submit" label={t('submitResult')} icon="📝" disabled={!user} />
-          <TabButton
-            tab="pending"
-            label={`${t('pendingMatches')} ${user && pendingMatches.length > 0 ? `(${pendingMatches.length})` : ''}`}
-            icon="⏳"
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="premium-nav mb-8 justify-center">
+          <TabButton tab="rankings" label="Rankings" icon="🏆" />
+          <TabButton tab="submit" label="Subir Resultado" icon="📝" disabled={!user} />
+          <TabButton 
+            tab="pending" 
+            label="Pendientes" 
+            icon="⏳" 
             disabled={!user}
+            count={pendingMatches.length}
           />
-          <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
+          <TabButton tab="history" label="Historial" icon="📊" disabled={!user} />
           <TabButton tab="achievements" label="Logros" icon="🎖️" disabled={!user} />
           {user && user.is_admin && (
-            <TabButton tab="admin" label={t('admin')} icon="⚙️" />
+            <TabButton tab="admin" label="Admin" icon="⚙️" />
           )}
         </div>
 
-        {/* {dashboardLoading && <div className="text-center p-4">{t('loading')}</div>} */}
-
-        <div className="bg-white rounded-lg shadow">
+        <div className="premium-card p-8 fade-in-up">
           {activeTab === 'rankings' && (
             <RankingsTab rankings={rankings} onPlayerClick={setSelectedPlayer} />
           )}
@@ -480,8 +497,8 @@ const Dashboard = () => {
             <SubmitMatchTab token={token} onMatchSubmitted={() => {
               fetchRankings();
               fetchMatches();
-              fetchPendingMatches(); // In case a submission affects this (e.g. future admin actions)
-              checkAchievements(); // Check for achievements after submitting
+              fetchPendingMatches();
+              checkAchievements();
             }} />
           )}
           {user && activeTab === 'pending' && (
@@ -500,15 +517,16 @@ const Dashboard = () => {
           {user && user.is_admin && activeTab === 'admin' && (
             <AdminTab token={token} />
           )}
-          {/* Fallback for when a disabled tab might somehow be active without a user */}
           {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements') && (
-             <div className="p-6 text-center text-gray-500">
-              <p>Por favor, inicia sesión para acceder a esta sección.</p>
+             <div className="text-center py-12">
+              <div className="text-6xl mb-4">🔒</div>
+              <h3 className="premium-title text-2xl mb-4">Acceso Restringido</h3>
+              <p className="text-gray-400 mb-8">Esta sección es exclusiva para miembros del club</p>
               <button
                 onClick={() => { setShowLoginView(true); setLoginViewMode('login'); }}
-                className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                className="btn-premium"
               >
-                {t('login')}
+                Iniciar Sesión
               </button>
             </div>
           )}
@@ -532,7 +550,6 @@ const AdminTab = ({ token }) => {
     is_active: true
   });
 
-  // Fetch all users
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -551,7 +568,6 @@ const AdminTab = ({ token }) => {
     fetchUsers();
   }, [token]);
 
-  // Create new user
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -577,7 +593,6 @@ const AdminTab = ({ token }) => {
     setLoading(false);
   };
 
-  // Update user
   const handleUpdateUser = async (userId, updateData) => {
     setLoading(true);
     setError('');
@@ -596,7 +611,6 @@ const AdminTab = ({ token }) => {
     setLoading(false);
   };
 
-  // Delete user
   const handleDeleteUser = async (userId, username) => {
     if (!window.confirm(`¿Estás seguro de que quieres eliminar al usuario "${username}"?`)) {
       return;
@@ -619,74 +633,74 @@ const AdminTab = ({ token }) => {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">⚙️ Panel de Administración</h2>
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="premium-title text-3xl">Panel de Administración</h2>
+          <p className="text-gray-400 mt-2">Gestión completa de usuarios del club</p>
+        </div>
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+          className={showCreateForm ? "btn-secondary" : "btn-premium"}
         >
           {showCreateForm ? 'Cancelar' : 'Crear Usuario'}
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+        <div className="bg-green-900/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg">
           {success}
         </div>
       )}
 
-      {/* Create User Form */}
       {showCreateForm && (
-        <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="text-lg font-semibold mb-4">Crear Nuevo Usuario</h3>
-          <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre de Usuario
-              </label>
+        <div className="premium-card p-6">
+          <h3 className="premium-subtitle text-xl mb-6">Crear Nuevo Usuario</h3>
+          <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="form-group">
+              <label className="form-label">Nombre de Usuario</label>
               <input
                 type="text"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-input"
                 value={createFormData.username}
                 onChange={(e) => setCreateFormData({...createFormData, username: e.target.value})}
+                placeholder="Usuario único"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contraseña
-              </label>
+            <div className="form-group">
+              <label className="form-label">Contraseña</label>
               <input
                 type="password"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-input"
                 value={createFormData.password}
                 onChange={(e) => setCreateFormData({...createFormData, password: e.target.value})}
+                placeholder="Contraseña segura"
               />
             </div>
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center">
+            <div className="flex items-center space-x-6">
+              <label className="flex items-center text-gray-300">
                 <input
                   type="checkbox"
                   checked={createFormData.is_admin}
                   onChange={(e) => setCreateFormData({...createFormData, is_admin: e.target.checked})}
-                  className="mr-2"
+                  className="mr-2 accent-yellow-500"
                 />
-                Es Administrador
+                Administrador
               </label>
-              <label className="flex items-center">
+              <label className="flex items-center text-gray-300">
                 <input
                   type="checkbox"
                   checked={createFormData.is_active}
                   onChange={(e) => setCreateFormData({...createFormData, is_active: e.target.checked})}
-                  className="mr-2"
+                  className="mr-2 accent-yellow-500"
                 />
                 Usuario Activo
               </label>
@@ -695,7 +709,7 @@ const AdminTab = ({ token }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+                className="btn-premium"
               >
                 {loading ? 'Creando...' : 'Crear Usuario'}
               </button>
@@ -704,40 +718,42 @@ const AdminTab = ({ token }) => {
         </div>
       )}
 
-      {/* Users Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300">
-          <thead>
-            <tr className="bg-gray-50">
-              <th className="border border-gray-300 px-4 py-2 text-left">Usuario</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">ELO</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Partidos</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Ganados</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Admin</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Activo</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <UserRow
-                key={user.id}
-                user={user}
-                isEditing={editingUser === user.id}
-                onEdit={() => setEditingUser(user.id)}
-                onCancelEdit={() => setEditingUser(null)}
-                onUpdate={(updateData) => handleUpdateUser(user.id, updateData)}
-                onDelete={() => handleDeleteUser(user.id, user.username)}
-                loading={loading}
-              />
-            ))}
-          </tbody>
-        </table>
+      <div className="premium-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>ELO</th>
+                <th>Partidos</th>
+                <th>Ganados</th>
+                <th>Admin</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <UserRow
+                  key={user.id}
+                  user={user}
+                  isEditing={editingUser === user.id}
+                  onEdit={() => setEditingUser(user.id)}
+                  onCancelEdit={() => setEditingUser(null)}
+                  onUpdate={(updateData) => handleUpdateUser(user.id, updateData)}
+                  onDelete={() => handleDeleteUser(user.id, user.username)}
+                  loading={loading}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {loading && (
-        <div className="text-center mt-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="text-center">
+          <div className="loading-spinner mx-auto"></div>
+          <p className="text-gray-400 mt-4">Procesando...</p>
         </div>
       )}
     </div>
@@ -757,45 +773,47 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
 
   if (isEditing) {
     return (
-      <tr className="bg-yellow-50">
-        <td className="border border-gray-300 px-4 py-2 font-medium">{user.username}</td>
-        <td className="border border-gray-300 px-4 py-2">
+      <tr className="bg-yellow-900/10">
+        <td className="font-medium text-yellow-400">{user.username}</td>
+        <td>
           <input
             type="number"
             step="0.1"
-            className="w-20 px-2 py-1 border border-gray-300 rounded"
+            className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white"
             value={editData.elo_rating}
             onChange={(e) => setEditData({...editData, elo_rating: parseFloat(e.target.value)})}
           />
         </td>
-        <td className="border border-gray-300 px-4 py-2">{user.matches_played}</td>
-        <td className="border border-gray-300 px-4 py-2">{user.matches_won}</td>
-        <td className="border border-gray-300 px-4 py-2">
+        <td>{user.matches_played}</td>
+        <td>{user.matches_won}</td>
+        <td>
           <input
             type="checkbox"
             checked={editData.is_admin}
             onChange={(e) => setEditData({...editData, is_admin: e.target.checked})}
+            className="accent-yellow-500"
           />
         </td>
-        <td className="border border-gray-300 px-4 py-2">
+        <td>
           <input
             type="checkbox"
             checked={editData.is_active}
             onChange={(e) => setEditData({...editData, is_active: e.target.checked})}
+            className="accent-yellow-500"
           />
         </td>
-        <td className="border border-gray-300 px-4 py-2">
+        <td>
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
               disabled={loading}
-              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm disabled:opacity-50"
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
             >
               Guardar
             </button>
             <button
               onClick={onCancelEdit}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-sm"
+              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm transition-colors"
             >
               Cancelar
             </button>
@@ -806,36 +824,45 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
   }
 
   return (
-    <tr className="hover:bg-gray-50">
-      <td className="border border-gray-300 px-4 py-2 font-medium">
+    <tr className="hover:bg-yellow-500/5 transition-colors">
+      <td className="font-medium">
         {user.username}
-        {user.is_admin && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">ADMIN</span>}
-        }
+        {user.is_admin && (
+          <span className="ml-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full">ADMIN</span>
+        )}
       </td>
-      <td className="border border-gray-300 px-4 py-2">{user.elo_rating?.toFixed(1)}</td>
-      <td className="border border-gray-300 px-4 py-2">{user.matches_played}</td>
-      <td className="border border-gray-300 px-4 py-2">{user.matches_won}</td>
-      <td className="border border-gray-300 px-4 py-2">
-        <span className={`px-2 py-1 rounded text-xs ${user.is_admin ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
+      <td>
+        <span className="elo-badge text-sm">
+          {user.elo_rating?.toFixed(0)}
+        </span>
+      </td>
+      <td>{user.matches_played}</td>
+      <td>{user.matches_won}</td>
+      <td>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          user.is_admin ? 'bg-purple-600 text-white' : 'bg-gray-600 text-gray-300'
+        }`}>
           {user.is_admin ? 'Sí' : 'No'}
         </span>
       </td>
-      <td className="border border-gray-300 px-4 py-2">
-        <span className={`px-2 py-1 rounded text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+      <td>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          user.is_active ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
           {user.is_active ? 'Activo' : 'Inactivo'}
         </span>
       </td>
-      <td className="border border-gray-300 px-4 py-2">
+      <td>
         <div className="flex space-x-2">
           <button
             onClick={onEdit}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
           >
             Editar
           </button>
           <button
             onClick={onDelete}
-            className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm"
+            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
           >
             Eliminar
           </button>
@@ -846,36 +873,57 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
 };
 
 const RankingsTab = ({ rankings, onPlayerClick }) => (
-  <div className="p-6">
-    <h2 className="text-2xl font-bold mb-4">🏆 Rankings</h2>
+  <div className="space-y-6">
+    <div className="text-center">
+      <h2 className="premium-title text-3xl mb-2">Rankings Elite</h2>
+      <p className="text-gray-400">Los mejores jugadores del club</p>
+    </div>
+    
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <table className="premium-table">
         <thead>
-          <tr className="border-b">
-            <th className="text-left py-2">Pos</th>
-            <th className="text-left py-2">Jugador</th>
-            <th className="text-left py-2">ELO</th>
-            <th className="text-left py-2">Partidos</th>
-            <th className="text-left py-2">Ganados</th>
-            <th className="text-left py-2">% Victoria</th>
-            <th className="text-left py-2">Perfil</th>
+          <tr>
+            <th>Posición</th>
+            <th>Jugador</th>
+            <th>ELO Rating</th>
+            <th>Partidos</th>
+            <th>Victorias</th>
+            <th>% Victoria</th>
+            <th>Perfil</th>
           </tr>
         </thead>
         <tbody>
           {rankings.map((player) => (
-            <tr key={player.username} className="border-b hover:bg-gray-50">
-              <td className="py-3 font-bold">#{player.rank}</td>
-              <td className="py-3">{player.username}</td>
-              <td className="py-3 font-bold text-green-600">{player.elo_rating}</td>
-              <td className="py-3">{player.matches_played}</td>
-              <td className="py-3">{player.matches_won}</td>
-              <td className="py-3">{player.win_rate}%</td>
-              <td className="py-3">
+            <tr key={player.username} className="interactive-element">
+              <td>
+                <div className="flex items-center">
+                  <div className={`rank-badge rank-${player.rank <= 3 ? player.rank : 'other'}`}>
+                    #{player.rank}
+                  </div>
+                </div>
+              </td>
+              <td className="font-semibold text-yellow-400">{player.username}</td>
+              <td>
+                <span className="elo-badge">
+                  {player.elo_rating}
+                </span>
+              </td>
+              <td>{player.matches_played}</td>
+              <td className="text-green-400 font-semibold">{player.matches_won}</td>
+              <td>
+                <span className={`font-semibold ${
+                  player.win_rate >= 70 ? 'text-green-400' : 
+                  player.win_rate >= 50 ? 'text-yellow-400' : 'text-red-400'
+                }`}>
+                  {player.win_rate}%
+                </span>
+              </td>
+              <td>
                 <button
                   onClick={() => onPlayerClick({ username: player.username })}
-                  className="text-blue-600 hover:text-blue-800 text-sm underline"
+                  className="text-yellow-400 hover:text-yellow-300 text-sm underline transition-colors"
                 >
-                  Ver perfil
+                  Ver Perfil
                 </button>
               </td>
             </tr>
@@ -896,8 +944,6 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  // State for opponent autocomplete
   const [opponentSuggestions, setOpponentSuggestions] = useState([]);
   const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState(null);
@@ -933,7 +979,6 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
     setLoading(false);
   };
 
-  // Effect for debouncing opponent search
   useEffect(() => {
     if (debounceTimeout) {
       clearTimeout(debounceTimeout);
@@ -953,14 +998,13 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
         } finally {
           setIsSearchingOpponent(false);
         }
-      }, 500); // 500ms debounce
+      }, 500);
       setDebounceTimeout(timeoutId);
     } else {
       setOpponentSuggestions([]);
       setIsSearchingOpponent(false);
     }
 
-    // Cleanup timeout on unmount or when formData.opponent_username changes
     return () => {
       if (debounceTimeout) {
         clearTimeout(debounceTimeout);
@@ -968,71 +1012,70 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
     };
   }, [formData.opponent_username, token]);
 
-
   const handleSuggestionClick = (suggestion) => {
     setFormData({...formData, opponent_username: suggestion.username});
     setOpponentSuggestions([]);
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">📝 Subir Resultado</h2>
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="premium-title text-3xl mb-2">Registrar Resultado</h2>
+        <p className="text-gray-400">Sube el resultado de tu último partido</p>
+      </div>
       
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
       
       {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+        <div className="bg-green-900/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg">
           {success}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-        <div className="relative"> {/* Added relative positioning here */}
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Oponente
-          </label>
+      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
+        <div className="form-group relative">
+          <label className="form-label">Oponente</label>
           <input
             type="text"
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="form-input"
             value={formData.opponent_username}
             onChange={(e) => {
               setFormData({...formData, opponent_username: e.target.value});
-              // Suggestions will be fetched by useEffect
             }}
-            placeholder="Nombre de usuario del oponente"
-            autoComplete="off" // Disable browser's own autocomplete
+            placeholder="Buscar jugador..."
+            autoComplete="off"
           />
-          {isSearchingOpponent && <p className="text-xs text-gray-500 mt-1">Buscando...</p>}
-          }
+          {isSearchingOpponent && (
+            <p className="text-xs text-gray-400 mt-1">Buscando jugadores...</p>
+          )}
           {opponentSuggestions.length > 0 && (
-            <ul className="border border-gray-300 rounded-md mt-1 max-h-40 overflow-y-auto bg-white absolute z-10 w-full shadow-lg">
+            <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
               {opponentSuggestions.map((suggestion) => (
                 <li
-                  key={suggestion.username} // Assuming username is unique for key
+                  key={suggestion.username}
                   onClick={() => handleSuggestionClick(suggestion)}
-                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                  className="px-4 py-3 hover:bg-gray-700 cursor-pointer flex justify-between items-center"
                 >
-                  {suggestion.username} ({suggestion.elo_rating?.toFixed(0)})
+                  <span className="text-white">{suggestion.username}</span>
+                  <span className="text-yellow-400 text-sm">
+                    ELO: {suggestion.elo_rating?.toFixed(0)}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Removed the extra relative div, as the one above now wraps the input and suggestions */}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tipo de Partida
-          </label>
+        <div className="form-group">
+          <label className="form-label">Tipo de Partida</label>
           <select
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="form-input"
             value={formData.match_type}
             onChange={(e) => setFormData({...formData, match_type: e.target.value})}
           >
@@ -1042,44 +1085,40 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Resultado
-          </label>
+        <div className="form-group">
+          <label className="form-label">Resultado</label>
           <input
             type="text"
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="form-input"
             value={formData.result}
             onChange={(e) => setFormData({...formData, result: e.target.value})}
-            placeholder={formData.match_type.includes('liga') ? 'Ej: 2-1, 5-0' : 'Ganado/Perdido'}
+            placeholder={formData.match_type.includes('liga') ? 'Ej: 3-2, 5-1' : 'Ganado/Perdido'}
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ¿Ganaste el partido?
-          </label>
-          <div className="flex space-x-4">
-            <label className="flex items-center">
+        <div className="form-group">
+          <label className="form-label">¿Ganaste el partido?</label>
+          <div className="flex space-x-6 mt-2">
+            <label className="flex items-center text-gray-300 cursor-pointer">
               <input
                 type="radio"
                 name="won"
                 checked={formData.won === true}
                 onChange={() => setFormData({...formData, won: true})}
-                className="mr-2"
+                className="mr-3 accent-yellow-500"
               />
-              Sí
+              <span className="text-green-400 font-semibold">Victoria</span>
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center text-gray-300 cursor-pointer">
               <input
                 type="radio"
                 name="won"
                 checked={formData.won === false}
                 onChange={() => setFormData({...formData, won: false})}
-                className="mr-2"
+                className="mr-3 accent-yellow-500"
               />
-              No
+              <span className="text-red-400 font-semibold">Derrota</span>
             </label>
           </div>
         </div>
@@ -1087,9 +1126,16 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-200 disabled:opacity-50"
+          className="btn-premium w-full"
         >
-          {loading ? 'Enviando...' : 'Enviar Resultado'}
+          {loading ? (
+            <div className="flex items-center justify-center">
+              <div className="loading-spinner mr-2"></div>
+              Enviando...
+            </div>
+          ) : (
+            'Enviar Resultado'
+          )}
         </button>
       </form>
     </div>
@@ -1097,41 +1143,62 @@ const SubmitMatchTab = ({ token, onMatchSubmitted }) => {
 };
 
 const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
-  <div className="p-6">
-    <h2 className="text-2xl font-bold mb-4">⏳ Partidos Pendientes</h2>
+  <div className="space-y-6">
+    <div className="text-center">
+      <h2 className="premium-title text-3xl mb-2">Partidos Pendientes</h2>
+      <p className="text-gray-400">Confirma o rechaza los resultados enviados</p>
+    </div>
+    
     {matches.length === 0 ? (
-      <p className="text-gray-500">No hay partidos pendientes de confirmación.</p>
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">✅</div>
+        <h3 className="premium-subtitle text-xl mb-2">Todo al día</h3>
+        <p className="text-gray-400">No tienes partidos pendientes de confirmación</p>
+      </div>
     ) : (
       <div className="space-y-4">
         {matches.map((match) => (
-          <div key={match.id} className="border rounded-lg p-4 bg-yellow-50">
+          <div key={match.id} className="premium-card p-6 hover:border-yellow-500/50 transition-colors">
             <div className="flex justify-between items-start">
-              <div>
-                <p className="font-semibold">
-                  {match.player1_username} vs {match.player2_username}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Tipo: {match.match_type.replace('_', ' ')} | Resultado: {match.result}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Ganador reportado: {match.winner_username}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {new Date(match.created_at).toLocaleDateString()}
-                </p>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-4">
+                  <h3 className="text-xl font-semibold text-yellow-400">
+                    {match.player1_username} vs {match.player2_username}
+                  </h3>
+                  <span className="status-pending">
+                    Pendiente
+                  </span>
+                </div>
+                <div className="text-gray-300">
+                  <span className="font-medium">Tipo:</span> {match.match_type.replace('_', ' ')} • 
+                  <span className="font-medium ml-2">Resultado:</span> {match.result}
+                </div>
+                <div className="text-gray-400">
+                  <span className="font-medium">Ganador reportado:</span> 
+                  <span className="text-green-400 ml-1">{match.winner_username}</span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {new Date(match.created_at).toLocaleDateString('es-ES', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
               </div>
-              <div className="flex space-x-2">
+              <div className="flex space-x-3">
                 <button
                   onClick={() => onConfirm(match.id)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Confirmar
+                  ✓ Confirmar
                 </button>
                 <button
                   onClick={() => onReject(match.id)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Rechazar
+                  ✗ Rechazar
                 </button>
               </div>
             </div>
@@ -1143,21 +1210,29 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => (
 );
 
 const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
-  <div className="p-6">
-    <h2 className="text-2xl font-bold mb-4">📊 Historial de Partidos</h2>
+  <div className="space-y-6">
+    <div className="text-center">
+      <h2 className="premium-title text-3xl mb-2">Historial de Partidos</h2>
+      <p className="text-gray-400">Tu trayectoria en el club</p>
+    </div>
+    
     {matches.length === 0 ? (
-      <p className="text-gray-500">No tienes partidos confirmados aún.</p>
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🎱</div>
+        <h3 className="premium-subtitle text-xl mb-2">Sin historial</h3>
+        <p className="text-gray-400">Aún no tienes partidos confirmados</p>
+      </div>
     ) : (
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="premium-table">
           <thead>
-            <tr className="border-b">
-              <th className="text-left py-2">Fecha</th>
-              <th className="text-left py-2">Oponente</th>
-              <th className="text-left py-2">Tipo</th>
-              <th className="text-left py-2">Resultado</th>
-              <th className="text-left py-2">Estado</th>
-              <th className="text-left py-2">Perfil</th>
+            <tr>
+              <th>Fecha</th>
+              <th>Oponente</th>
+              <th>Tipo</th>
+              <th>Resultado</th>
+              <th>Estado</th>
+              <th>Perfil</th>
             </tr>
           </thead>
           <tbody>
@@ -1168,28 +1243,32 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => (
                 : match.player1_username;
               
               return (
-                <tr key={match.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 text-sm">
-                    {new Date(match.confirmed_at).toLocaleDateString()}
+                <tr key={match.id} className="interactive-element">
+                  <td className="text-sm">
+                    {new Date(match.confirmed_at).toLocaleDateString('es-ES', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })}
                   </td>
-                  <td className="py-3">{opponent}</td>
-                  <td className="py-3 text-sm">{match.match_type.replace('_', ' ')}</td>
-                  <td className="py-3">{match.result}</td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded text-xs ${
+                  <td className="font-semibold text-yellow-400">{opponent}</td>
+                  <td className="text-sm capitalize">{match.match_type.replace('_', ' ')}</td>
+                  <td className="font-medium">{match.result}</td>
+                  <td>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                       isWinner 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-red-600 text-white'
                     }`}>
-                      {isWinner ? 'Victoria' : 'Derrota'}
+                      {isWinner ? '🏆 Victoria' : '💔 Derrota'}
                     </span>
                   </td>
-                  <td className="py-3">
+                  <td>
                     <button
                       onClick={() => onPlayerClick({ username: opponent })}
-                      className="text-blue-600 hover:text-blue-800 text-sm underline"
+                      className="text-yellow-400 hover:text-yellow-300 text-sm underline transition-colors"
                     >
-                      Ver perfil
+                      Ver Perfil
                     </button>
                   </td>
                 </tr>
@@ -1211,22 +1290,22 @@ function App() {
 }
 
 const AppContent = () => {
-  const { loading: authLoading } = useAuth(); // Renamed to avoid conflict
-  const { t } = useTranslation(); // Initialize useTranslation for AppContent
+  const { loading: authLoading } = useAuth();
+  const { t } = useTranslation();
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center relative">
+        <div className="app-background"></div>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p>{t('loading')}</p> {/* Changed text slightly & translated */}
+          <div className="loading-spinner mx-auto mb-6"></div>
+          <h2 className="premium-title text-2xl mb-2">Elite Billiards</h2>
+          <p className="text-gray-400">Cargando aplicación...</p>
         </div>
       </div>
     );
   }
 
-  // AppContent now always renders Dashboard.
-  // Dashboard itself will decide whether to show LoginForm or its main content.
   return <Dashboard />;
 };
 
