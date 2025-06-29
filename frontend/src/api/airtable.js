@@ -39,7 +39,7 @@ export const findRecordsByField = async (table, field, value) => {
 
 export const loginUser = async (username, password) => {
   const users = await listRecords('Users');
-  const user = users.find(u => u.username === username && u.password_hash === password);
+  const user = users.find(u => u.username === username && u.password === password);
   if (!user) throw new Error('Invalid credentials');
   return user;
 };
@@ -47,7 +47,7 @@ export const loginUser = async (username, password) => {
 export const registerUser = async (username, password) => {
   return createRecord('Users', {
     username,
-    password_hash: password,
+    password,
     elo_rating: 1200,
     matches_played: 0,
     matches_won: 0,

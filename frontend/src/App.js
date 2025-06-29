@@ -565,7 +565,7 @@ const AdminTab = () => {
     try {
       await createRecord('Users', {
         username: createFormData.username,
-        password_hash: createFormData.password,
+        password: createFormData.password,
         is_admin: createFormData.is_admin,
         is_active: createFormData.is_active,
         elo_rating: 1200,
