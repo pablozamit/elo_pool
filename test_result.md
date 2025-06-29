@@ -274,6 +274,21 @@ frontend:
         agent: "main"
         comment: "Implemented mobile-first responsive design with Tailwind CSS"
 
+  - task: "Achievements System"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/components/AchievementSystem.js"
+    stuck_count: 1
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "user"
+        comment: "User reported crash when opening achievements tab: Uncaught TypeError on badges.length"
+      - working: false
+        agent: "main"
+        comment: "Adjusted fetchUserBadges to return minimal achievement object to prevent undefined property errors"
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
@@ -298,3 +313,5 @@ agent_communication:
     message: "Completed comprehensive testing of all backend functionality. Created backend_test.py to test the complete workflow including user registration, login, match submission, confirmation, ELO calculation, and rankings. All backend tasks are working correctly with no issues found."
   - agent: "testing"
     message: "Successfully tested the corrected ELO weights. Created a specific test function that confirms matches with all 4 match types and verifies the ELO changes reflect the correct weight ordering: Rey Mesa (1.0) < Torneo (1.5) < Liga Grupos (2.0) < Liga Finales (2.5). All tests passed successfully."
+  - agent: "main"
+    message: "Fixed achievements tab crash by ensuring fetchUserBadges returns an object with default stats. Ready for retesting of Achievements System."
