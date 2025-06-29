@@ -14,6 +14,7 @@ from enum import Enum
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete, and_, or_
 from .database import get_db, create_tables, UserDB, MatchDB, UserAchievementDB, AsyncSessionLocal
+from .achievement_service import check_achievements_after_match
 import json
 
 # JWT Configuration
@@ -387,6 +388,8 @@ async def confirm_match(match_id: str, current_user: User = Depends(get_current_
             matches_won=UserDB.matches_won + (1 if match_db.winner_id == match_db.player2_id else 0)
         )
     )
+    await check_achievements_after_match(db, match_db.player1_id)
+    await check_achievements_after_match(db, match_db.player2_id)
     
     await db.commit()
     
@@ -581,6 +584,8 @@ async def admin_delete_user(user_id: str, admin_user: User = Depends(get_current
 
 # Include the router in the main app
 app.include_router(api_router)
+from .simple_achievement_routes import achievement_router as simple_achievement_router
+app.include_router(simple_achievement_router)
 
 app.add_middleware(
     CORSMiddleware,
