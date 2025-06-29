@@ -79,6 +79,11 @@ export const fetchPendingMatchesForUser = async (username) => {
   return all.filter(m => m.status === 'pending' && (m.player1_username === username || m.player2_username === username));
 };
 
+export const fetchPendingMatchesForUser = async (username) => {
+  const all = await listRecords('Matches');
+  return all.filter(m => m.status === 'pending' && (m.player1_username === username || m.player2_username === username));
+};
+
 export const createMatch = async (fields) => {
   return createRecord('Matches', fields);
 };
