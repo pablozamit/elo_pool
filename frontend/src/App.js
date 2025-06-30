@@ -57,7 +57,7 @@ const simulateEloChange = (playerA, playerB, didAWin, matchType) => {
   };
 };
 
-const useEloPreview = (formData, rankings, user, selectedOpponent) => {
+const useEloPreview = (formData, rankings, user, opponentParam) => {
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
@@ -73,14 +73,15 @@ const useEloPreview = (formData, rankings, user, selectedOpponent) => {
     }
 
     const opponent =
-      selectedOpponent ||
+      opponentParam ||
       rankings.find((p) => p.username.toLowerCase() === opponent_username.toLowerCase());
     if (!opponent) {
       setPreview(null);
       return;
     }
 
-    const currentUser = rankings.find((p) => p.username === user.username);
+    const currentUser =
+      rankings.find((p) => p.username === user.username) || user;
     if (
       !currentUser ||
       !Number.isFinite(currentUser.elo_rating) ||
@@ -98,7 +99,15 @@ const useEloPreview = (formData, rankings, user, selectedOpponent) => {
       match_type
     );
 
-    const newRankings = rankings
+    const baseRankings = [...rankings];
+    if (!baseRankings.find((p) => p.username === currentUser.username)) {
+      baseRankings.push(currentUser);
+    }
+    if (!baseRankings.find((p) => p.username === opponent.username)) {
+      baseRankings.push(opponent);
+    }
+
+    const newRankings = baseRankings
       .map((p) => {
         if (p.username === currentUser.username) return { ...p, elo_rating: eloA };
         if (p.username === opponent.username) return { ...p, elo_rating: eloB };
@@ -106,8 +115,10 @@ const useEloPreview = (formData, rankings, user, selectedOpponent) => {
       })
       .sort((a, b) => b.elo_rating - a.elo_rating);
 
+    const currentSorted = [...baseRankings].sort((a, b) => b.elo_rating - a.elo_rating);
+
     const newRankUser = newRankings.findIndex((p) => p.username === currentUser.username) + 1;
-    const currentRankUser = rankings.findIndex((p) => p.username === currentUser.username) + 1;
+    const currentRankUser = currentSorted.findIndex((p) => p.username === currentUser.username) + 1;
 
     setPreview({
       user: currentUser,
@@ -125,7 +136,7 @@ const useEloPreview = (formData, rankings, user, selectedOpponent) => {
     formData.match_type,
     rankings,
     user,
-    selectedOpponent,
+    opponentParam,
   ]);
 
   return preview;
@@ -1213,11 +1224,28 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState(null);
   const [selectedOpponent, setSelectedOpponent] = useState(null);
-  const typedOpponent = rankings.find(
-    (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
-  );
+  const [allPlayers, setAllPlayers] = useState([]);
+
+  useEffect(() => {
+    const loadPlayers = async () => {
+      try {
+        const users = await listRecords('Users');
+        setAllPlayers(users);
+      } catch (err) {
+        console.error('Error loading players:', err);
+      }
+    };
+    loadPlayers();
+  }, []);
+  const typedOpponent =
+    allPlayers.find(
+      (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
+    ) ||
+    rankings.find(
+      (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
+    );
   const opponent = selectedOpponent || typedOpponent;
-  const eloPreview = useEloPreview(formData, rankings, user, selectedOpponent);
+  const eloPreview = useEloPreview(formData, rankings, user, opponent);
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1238,7 +1266,6 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       const myScore = parseInt(formData.my_score, 10);
       const oppScore = parseInt(formData.opponent_score, 10);
       const iWon = myScore > oppScore;
-      const opponent = selectedOpponent || typedOpponent;
       if (!opponent) {
         throw new Error('Opponent not found');
       }
@@ -1452,6 +1479,16 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           </ul>
         </div>
       )}
+      {!eloPreview &&
+        user &&
+        formData.opponent_username &&
+        formData.my_score !== '' &&
+        formData.opponent_score !== '' &&
+        formData.match_type && (
+          <div className="mt-8 text-yellow-400 text-sm">
+            ⚠️ No se pudo calcular el cambio de ELO.
+          </div>
+        )}
     </div>
   );
 };
