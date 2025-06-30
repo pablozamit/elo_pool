@@ -227,6 +227,12 @@ export const updateMatch = async (id, fields) => {
   return updateRecord('Matches', id, denormalizeMatch(fields));
 };
 
+export const fetchRecentMatches = async (days = 7) => {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const filter = `?filterByFormula=AND({Match Status}='confirmed', IS_AFTER({Confirmed At}, '${since}'))`;
+  return listRecords('Matches', filter);
+};
+
 export const fetchRankings = async () => {
   const users = await listRecords('Users');
   return users.sort((a, b) => b.elo_rating - a.elo_rating);
