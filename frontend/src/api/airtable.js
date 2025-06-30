@@ -214,6 +214,11 @@ export const fetchPendingMatchesForUser = async (username) => {
   );
 };
 
+export const fetchAllPendingMatches = async () => {
+  const all = await listRecords('Matches');
+  return all.filter((m) => m.status === 'pending');
+};
+
 export const createMatch = async (fields) => {
   return createRecord('Matches', denormalizeMatch(fields));
 };
