@@ -25,5 +25,11 @@
   "noAccount": "Don't have an account?",
   "alreadyAccount": "Already have an account?",
   "loginTitle": "Login to your account",
-  "registerTitle": "Create your player account"
+  "registerTitle": "Create your player account",
+  "eloPreviewTitle": "ELO impact preview",
+  "newElo": "New ELO",
+  "newPosition": "New position",
+  "positionUp": "up {{count}}",
+  "positionDown": "down {{count}}",
+  "positionNoChange": "no change"
 }
