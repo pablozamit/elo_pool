@@ -967,8 +967,8 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [formData, setFormData] = useState({
     opponent_username: '',
     match_type: 'rey_mesa',
-    result: '',
-    won: true
+    my_score: '0',
+    opponent_score: '0'
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -993,12 +993,15 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     setSuccess('');
 
     try {
+      const myScore = parseInt(formData.my_score, 10);
+      const oppScore = parseInt(formData.opponent_score, 10);
+      const iWon = myScore > oppScore;
       const matchPayload = {
         player1_username: user.username,
         player2_username: formData.opponent_username,
         match_type: formData.match_type,
-        result: formData.result,
-        winner_id: formData.won ? user.username : formData.opponent_username,
+        result: `${myScore}-${oppScore}`,
+        winner_id: iWon ? user.username : formData.opponent_username,
         status: 'pending',
         submitted_by: user.username,
         created_at: new Date().toISOString(),
@@ -1008,8 +1011,8 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       setFormData({
         opponent_username: '',
         match_type: 'rey_mesa',
-        result: '',
-        won: true
+        my_score: '0',
+        opponent_score: '0'
       });
       onMatchSubmitted();
     } catch (error) {
@@ -1066,11 +1069,18 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       setPreview(null);
       return;
     }
-    const winnerElo = formData.won ? user.elo_rating : selectedOpponent.elo_rating;
-    const loserElo = formData.won ? selectedOpponent.elo_rating : user.elo_rating;
+    const myScore = parseInt(formData.my_score, 10);
+    const oppScore = parseInt(formData.opponent_score, 10);
+    if (isNaN(myScore) || isNaN(oppScore)) {
+      setPreview(null);
+      return;
+    }
+    const iWon = myScore > oppScore;
+    const winnerElo = iWon ? user.elo_rating : selectedOpponent.elo_rating;
+    const loserElo = iWon ? selectedOpponent.elo_rating : user.elo_rating;
     const { newWinnerElo, newLoserElo } = calculateEloChange(winnerElo, loserElo, formData.match_type);
-    const userNewElo = formData.won ? newWinnerElo : newLoserElo;
-    const opponentNewElo = formData.won ? newLoserElo : newWinnerElo;
+    const userNewElo = iWon ? newWinnerElo : newLoserElo;
+    const opponentNewElo = iWon ? newLoserElo : newWinnerElo;
 
     const updated = rankings
       .map((p) => {
@@ -1097,7 +1107,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       currentUserRank,
       currentOppRank,
     });
-  }, [selectedOpponent, formData.won, formData.match_type, rankings, user]);
+  }, [selectedOpponent, formData.my_score, formData.opponent_score, formData.match_type, rankings, user]);
 
   return (
     <div className="space-y-6">
@@ -1170,39 +1180,26 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
 
         <div className="form-group">
           <label className="form-label">{t('result')}</label>
-          <input
-            type="text"
-            required
-            className="form-input"
-            value={formData.result}
-            onChange={(e) => setFormData({...formData, result: e.target.value})}
-            placeholder={formData.match_type.includes('liga') ? 'Ej: 3-2, 5-1' : 'Ganado/Perdido'}
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">{t('didYouWin')}</label>
-          <div className="flex space-x-6 mt-2">
-            <label className="flex items-center text-gray-300 cursor-pointer">
-              <input
-                type="radio"
-                name="won"
-                checked={formData.won === true}
-                onChange={() => setFormData({...formData, won: true})}
-                className="mr-3 accent-yellow-500"
-              />
-              <span className="text-green-400 font-semibold">{t('yes')}</span>
-            </label>
-            <label className="flex items-center text-gray-300 cursor-pointer">
-              <input
-                type="radio"
-                name="won"
-                checked={formData.won === false}
-                onChange={() => setFormData({...formData, won: false})}
-                className="mr-3 accent-yellow-500"
-              />
-              <span className="text-red-400 font-semibold">{t('no')}</span>
-            </label>
+          <div className="flex items-center space-x-2">
+            <select
+              className="form-input w-20"
+              value={formData.my_score}
+              onChange={(e) => setFormData({ ...formData, my_score: e.target.value })}
+            >
+              {Array.from({ length: formData.match_type.includes('liga') ? 10 : 2 }, (_, i) => (
+                <option key={i} value={i}>{i}</option>
+              ))}
+            </select>
+            <span className="text-xl">-</span>
+            <select
+              className="form-input w-20"
+              value={formData.opponent_score}
+              onChange={(e) => setFormData({ ...formData, opponent_score: e.target.value })}
+            >
+              {Array.from({ length: formData.match_type.includes('liga') ? 10 : 2 }, (_, i) => (
+                <option key={i} value={i}>{i}</option>
+              ))}
+            </select>
           </div>
         </div>
 
