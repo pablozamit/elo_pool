@@ -44,6 +44,80 @@ const calculateEloChange = (winnerElo, loserElo, matchType) => {
   return { newWinnerElo, newLoserElo };
 };
 
+const simulateEloChange = (playerA, playerB, didAWin, matchType) => {
+  const weight = ELO_WEIGHTS[matchType] || 1.0;
+  const expectedA = 1 / (1 + Math.pow(10, (playerB.elo_rating - playerA.elo_rating) / 400));
+  const scoreA = didAWin ? 1 : 0;
+  const K = 32 * weight;
+  const change = Math.round(K * (scoreA - expectedA));
+  return { eloA: playerA.elo_rating + change, eloB: playerB.elo_rating - change, change };
+};
+
+const useEloPreview = (formData, rankings, user, selectedOpponent) => {
+  const [preview, setPreview] = useState(null);
+
+  useEffect(() => {
+    const { opponent_username, my_score, opponent_score, match_type } = formData;
+    if (!opponent_username || !match_type || my_score === '' || opponent_score === '') {
+      setPreview(null);
+      return;
+    }
+
+    const opponent =
+      selectedOpponent ||
+      rankings.find((p) => p.username.toLowerCase() === opponent_username.toLowerCase());
+    if (!opponent) {
+      setPreview(null);
+      return;
+    }
+
+    const currentUser = rankings.find((p) => p.username === user.username);
+    if (!currentUser) {
+      setPreview(null);
+      return;
+    }
+
+    const didAWin = parseInt(my_score, 10) > parseInt(opponent_score, 10);
+    const { eloA, eloB, change } = simulateEloChange(
+      currentUser,
+      opponent,
+      didAWin,
+      match_type
+    );
+
+    const newRankings = rankings
+      .map((p) => {
+        if (p.username === currentUser.username) return { ...p, elo_rating: eloA };
+        if (p.username === opponent.username) return { ...p, elo_rating: eloB };
+        return p;
+      })
+      .sort((a, b) => b.elo_rating - a.elo_rating);
+
+    const newRankUser = newRankings.findIndex((p) => p.username === currentUser.username) + 1;
+    const currentRankUser = rankings.findIndex((p) => p.username === currentUser.username) + 1;
+
+    setPreview({
+      user: currentUser,
+      opponent,
+      simulatedEloA: eloA,
+      simulatedEloB: eloB,
+      change,
+      newRankUser,
+      deltaRank: currentRankUser - newRankUser,
+    });
+  }, [
+    formData.opponent_username,
+    formData.my_score,
+    formData.opponent_score,
+    formData.match_type,
+    rankings,
+    user,
+    selectedOpponent,
+  ]);
+
+  return preview;
+};
+
 // Base Airtable interaction is handled via api/airtable.js
 
 // Auth Context
@@ -1126,7 +1200,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState(null);
   const [selectedOpponent, setSelectedOpponent] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const preview = useEloPreview(formData, rankings, user, selectedOpponent);
   const typedOpponent = rankings.find(
     (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
   );
@@ -1228,64 +1302,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     setOpponentSuggestions([]);
   };
 
-  useEffect(() => {
-    const opponent =
-      selectedOpponent ||
-      rankings.find(
-        (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
-      );
 
-    if (!opponent || rankings.length === 0) {
-      setPreview(null);
-      return;
-    }
-    const opponentRankObj = rankings.find((p) => p.username === opponent.username);
-    const userRankObj = rankings.find((p) => p.username === user.username);
-    if (!opponentRankObj || !userRankObj) {
-      setPreview(null);
-      return;
-    }
-    const myScore = parseInt(formData.my_score, 10);
-    const oppScore = parseInt(formData.opponent_score, 10);
-    if (isNaN(myScore) || isNaN(oppScore)) {
-      setPreview(null);
-      return;
-    }
-    const iWon = myScore > oppScore;
-    const winnerElo = iWon ? user.elo_rating : opponent.elo_rating;
-    const loserElo = iWon ? opponent.elo_rating : user.elo_rating;
-    const { newWinnerElo, newLoserElo } = calculateEloChange(winnerElo, loserElo, formData.match_type);
-    const userNewElo = iWon ? newWinnerElo : newLoserElo;
-    const opponentNewElo = iWon ? newLoserElo : newWinnerElo;
-
-    const updated = rankings
-      .map((p) => {
-        if (p.username === user.username) return { ...p, elo_rating: userNewElo };
-        if (p.username === opponent.username) return { ...p, elo_rating: opponentNewElo };
-        return p;
-      })
-      .sort((a, b) => b.elo_rating - a.elo_rating);
-
-    const newUserRank = updated.findIndex((p) => p.username === user.username) + 1;
-    const newOppRank = updated.findIndex((p) => p.username === opponent.username) + 1;
-    const currentUserRank = rankings.findIndex((p) => p.username === user.username) + 1;
-    const currentOppRank = rankings.findIndex((p) => p.username === opponent.username) + 1;
-
-    const previewData = {
-      userNewElo,
-      opponentNewElo,
-      userRank: newUserRank,
-      opponentRank: newOppRank,
-      userChange: userNewElo - user.elo_rating,
-      opponentChange: opponentNewElo - opponent.elo_rating,
-      userRankDiff: currentUserRank - newUserRank,
-      opponentRankDiff: currentOppRank - newOppRank,
-      currentUserRank,
-      currentOppRank,
-    };
-    console.log('Preview ELO:', previewData);
-    setPreview(previewData);
-  }, [selectedOpponent, formData.opponent_username, formData.my_score, formData.opponent_score, formData.match_type, rankings, user]);
 
   return (
     <div className="space-y-6">
@@ -1382,32 +1399,17 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         </div>
 
         {preview && (
-          <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4 space-y-2 text-sm">
-            <h4 className="text-center text-yellow-400 font-semibold">{t('eloPreviewTitle')}</h4>
-            <div className="flex justify-between">
-              <div className="w-1/2 pr-2">
-                <div className="font-bold text-white">{user.username}</div>
-                <div>{t('newElo')}: {user.elo_rating.toFixed(0)} → {preview.userNewElo.toFixed(0)} ({preview.userChange >= 0 ? '+' : ''}{preview.userChange.toFixed(1)})</div>
-                <div>{t('newPosition')}: {preview.currentUserRank} → {preview.userRank} (
-                  {preview.userRankDiff > 0
-                    ? t('positionUp', { count: preview.userRankDiff })
-                    : preview.userRankDiff < 0
-                    ? t('positionDown', { count: -preview.userRankDiff })
-                    : t('positionNoChange')}
-                )</div>
-              </div>
-              <div className="w-1/2 pl-2">
-                <div className="font-bold text-white">{opponentToDisplay?.username}</div>
-                <div>{t('newElo')}: {opponentToDisplay?.elo_rating.toFixed(0)} → {preview.opponentNewElo.toFixed(0)} ({preview.opponentChange >= 0 ? '+' : ''}{preview.opponentChange.toFixed(1)})</div>
-                <div>{t('newPosition')}: {preview.currentOppRank} → {preview.opponentRank} (
-                  {preview.opponentRankDiff > 0
-                    ? t('positionUp', { count: preview.opponentRankDiff })
-                    : preview.opponentRankDiff < 0
-                    ? t('positionDown', { count: -preview.opponentRankDiff })
-                    : t('positionNoChange')}
-                )</div>
-              </div>
-            </div>
+          <div className="elo-preview">
+            <p>
+              {user.username}: {user.elo_rating.toFixed(0)} → {preview.simulatedEloA.toFixed(0)} (
+              {preview.change > 0 ? '+' : ''}{preview.change})
+            </p>
+            <p>
+              {preview.opponent.username}: {preview.opponent.elo_rating.toFixed(0)} →{' '}
+              {preview.simulatedEloB.toFixed(0)} ({preview.change > 0 ? '-' : '+'}
+              {Math.abs(preview.change)})
+            </p>
+            <p>Tu nueva posición estimada: #{preview.newRankUser} {preview.deltaRank !== 0 ? `(${preview.deltaRank > 0 ? '+' : ''}${preview.deltaRank})` : ''}</p>
           </div>
         )}
 

@@ -262,6 +262,18 @@ frontend:
         agent: "main"
         comment: "Implemented rankings table with position, ELO, matches played, win rate"
 
+  - task: "ELO Preview Simulation"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added frontend hook to simulate ELO change and show preview ranking"
+
   - task: "Mobile Responsive Design"
     implemented: true
     working: "NA"
@@ -315,3 +327,5 @@ agent_communication:
     message: "Successfully tested the corrected ELO weights. Created a specific test function that confirms matches with all 4 match types and verifies the ELO changes reflect the correct weight ordering: Rey Mesa (1.0) < Torneo (1.5) < Liga Grupos (2.0) < Liga Finales (2.5). All tests passed successfully."
   - agent: "main"
     message: "Fixed achievements tab crash by ensuring fetchUserBadges returns an object with default stats. Ready for retesting of Achievements System."
+  - agent: "main"
+    message: "Added ELO preview simulation hook in frontend for match submission form."
