@@ -373,7 +373,45 @@ const Dashboard = () => {
   const confirmMatch = async (matchId) => {
     if (!user) return;
     try {
-      await updateMatch(matchId, { status: 'confirmed' });
+      const match = pendingMatches.find((m) => m.id === matchId);
+      if (!match) throw new Error('Match not found');
+
+      const player1 = rankings.find((p) => p.id === match.player1_id);
+      const player2 = rankings.find((p) => p.id === match.player2_id);
+      if (!player1 || !player2) throw new Error('Players not found');
+
+      const winnerIsP1 = match.winner_id === match.player1_id || match.winner_id === match.player1_username;
+      const winnerElo = winnerIsP1 ? match.player1_elo_before : match.player2_elo_before;
+      const loserElo = winnerIsP1 ? match.player2_elo_before : match.player1_elo_before;
+
+      const { newWinnerElo, newLoserElo } = calculateEloChange(
+        winnerElo,
+        loserElo,
+        match.match_type
+      );
+
+      const player1EloAfter = winnerIsP1 ? newWinnerElo : newLoserElo;
+      const player2EloAfter = winnerIsP1 ? newLoserElo : newWinnerElo;
+
+      await updateMatch(matchId, {
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+        player1_elo_after: player1EloAfter,
+        player2_elo_after: player2EloAfter,
+      });
+
+      await updateRecord('Users', player1.id, denormalizeUser({
+        elo_rating: player1EloAfter,
+        matches_played: player1.matches_played + 1,
+        matches_won: player1.matches_won + (winnerIsP1 ? 1 : 0),
+      }));
+
+      await updateRecord('Users', player2.id, denormalizeUser({
+        elo_rating: player2EloAfter,
+        matches_played: player2.matches_played + 1,
+        matches_won: player2.matches_won + (winnerIsP1 ? 0 : 1),
+      }));
+
       fetchPendingMatches();
       fetchRankings();
       fetchMatches();
@@ -537,7 +575,7 @@ const Dashboard = () => {
           <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
           <TabButton
             tab="achievements"
-            label="Logros"
+            label={t('achievements')}
             icon="🎖️"
             disabled={!user}
             count={newAchievementCount}
@@ -1048,15 +1086,25 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       const myScore = parseInt(formData.my_score, 10);
       const oppScore = parseInt(formData.opponent_score, 10);
       const iWon = myScore > oppScore;
+      const opponent = selectedOpponent || typedOpponent;
+      if (!opponent) {
+        throw new Error('Opponent not found');
+      }
       const matchPayload = {
         player1_username: user.username,
-        player2_username: formData.opponent_username,
+        player2_username: opponent.username,
+        player1_id: user.id,
+        player2_id: opponent.id,
         match_type: formData.match_type,
         result: `${myScore}-${oppScore}`,
-        winner_id: iWon ? user.username : formData.opponent_username,
+        winner_id: iWon ? user.id : opponent.id,
         status: 'pending',
         submitted_by: user.username,
         created_at: new Date().toISOString(),
+        player1_elo_before: user.elo_rating,
+        player2_elo_before: opponent.elo_rating,
+        player1_total_matches: user.matches_played,
+        player2_total_matches: opponent.matches_played,
       };
       await airtableCreateMatch(matchPayload);
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
