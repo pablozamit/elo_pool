@@ -310,11 +310,11 @@ async def create_match(match_data: MatchCreate, current_user: User = Depends(get
 
 @api_router.get("/matches/pending")
 async def get_pending_matches(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    result = await db.execute(
-        select(MatchDB).where(
-            and_(MatchDB.player2_id == current_user.id, MatchDB.status == "pending")
-        )
-    )
+    query = select(MatchDB).where(MatchDB.status == "pending")
+    if not current_user.is_admin:
+        query = query.where(MatchDB.player2_id == current_user.id)
+
+    result = await db.execute(query)
     matches = result.scalars().all()
     
     return [MatchResponse(

@@ -409,11 +409,18 @@ async def create_match(match_data: MatchCreate, current_user: User = Depends(get
 async def get_pending_matches(current_user: User = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('''
-        SELECT * FROM matches 
-        WHERE player2_id = ? AND status = 'pending'
-        ORDER BY created_at DESC
-    ''', (current_user.id,))
+    if current_user.is_admin:
+        cursor.execute('''
+            SELECT * FROM matches
+            WHERE status = 'pending'
+            ORDER BY created_at DESC
+        ''')
+    else:
+        cursor.execute('''
+            SELECT * FROM matches
+            WHERE player2_id = ? AND status = 'pending'
+            ORDER BY created_at DESC
+        ''', (current_user.id,))
     matches = cursor.fetchall()
     conn.close()
     

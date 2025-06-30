@@ -6,6 +6,7 @@ import {
   fetchRankings as airtableFetchRankings,
   fetchMatchesForUser,
   fetchPendingMatchesForUser,
+  fetchAllPendingMatches,
   createMatch as airtableCreateMatch,
   updateMatch,
   searchUsers,
@@ -269,7 +270,9 @@ const Dashboard = () => {
   const fetchPendingMatches = async () => {
     if (!user) return;
     try {
-      const data = await fetchPendingMatchesForUser(user.username);
+      const data = user.is_admin
+        ? await fetchAllPendingMatches()
+        : await fetchPendingMatchesForUser(user.username);
       setPendingMatches(data);
     } catch (error) {
       console.error('Error fetching pending matches:', error);
