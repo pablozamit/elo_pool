@@ -251,6 +251,7 @@ const Dashboard = () => {
   const [matches, setMatches] = useState([]);
   const [pendingMatches, setPendingMatches] = useState([]);
   const [achievementNotifications, setAchievementNotifications] = useState([]);
+  const [newAchievementCount, setNewAchievementCount] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [actionError, setActionError] = useState('');
   const { user, logout } = useAuth();
@@ -303,6 +304,7 @@ const Dashboard = () => {
       const data = await checkAchievementsAPI(user.id);
       if (data.new_badges && data.new_badges.length > 0) {
         setAchievementNotifications(data.new_badges);
+        setNewAchievementCount((c) => c + data.new_badges.length);
       }
     } catch (error) {
       console.error('Error checking achievements:', error);
@@ -327,6 +329,12 @@ const Dashboard = () => {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab === 'achievements') {
+      setNewAchievementCount(0);
+    }
+  }, [activeTab]);
 
   const confirmMatch = async (matchId) => {
     if (!user) return;
@@ -493,7 +501,13 @@ const Dashboard = () => {
             count={pendingMatches.length}
           />
           <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
-          <TabButton tab="achievements" label="Logros" icon="🎖️" disabled={!user} />
+          <TabButton
+            tab="achievements"
+            label="Logros"
+            icon="🎖️"
+            disabled={!user}
+            count={newAchievementCount}
+          />
           {user && user.is_admin && (
             <TabButton tab="admin" label={t('admin')} icon="⚙️" />
           )}

@@ -271,6 +271,12 @@ async def create_match(match_data: MatchCreate, current_user: User = Depends(get
     
     db.add(match_db)
     await db.commit()
+
+    # Check achievements for both players after submitting the result
+    await check_achievements_after_match(db, match_db.player1_id)
+    await check_achievements_after_match(db, match_db.player2_id)
+
+    await db.commit()
     
     return MatchResponse(
         id=match_db.id,
