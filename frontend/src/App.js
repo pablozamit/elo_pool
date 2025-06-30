@@ -9,6 +9,7 @@ import {
   fetchAllPendingMatches,
   createMatch as airtableCreateMatch,
   updateMatch,
+  fetchRecentMatches,
   searchUsers,
   checkAchievements as checkAchievementsAPI,
   listRecords,
@@ -260,11 +261,44 @@ const Dashboard = () => {
   const [showLoginView, setShowLoginView] = useState(false);
   const [loginViewMode, setLoginViewMode] = useState('login');
 
-  // Fetch rankings
+  // Fetch rankings with 7-day evolution
   const fetchRankings = async () => {
     try {
-      const data = await airtableFetchRankings();
-      setRankings(data);
+      const players = await airtableFetchRankings();
+      const recent = await fetchRecentMatches(7);
+
+      const changeMap = {};
+      players.forEach((p) => {
+        changeMap[p.id] = 0;
+      });
+      recent.forEach((m) => {
+        if (m.player1_id && changeMap[m.player1_id] !== undefined) {
+          changeMap[m.player1_id] += m.player1_elo_change || 0;
+        }
+        if (m.player2_id && changeMap[m.player2_id] !== undefined) {
+          changeMap[m.player2_id] += m.player2_elo_change || 0;
+        }
+      });
+
+      const withChange = players.map((p, idx) => ({
+        ...p,
+        rank: idx + 1,
+        elo_change: Math.round(changeMap[p.id] || 0),
+        elo_past: p.elo_rating - (changeMap[p.id] || 0),
+      }));
+
+      const pastSorted = [...withChange].sort((a, b) => b.elo_past - a.elo_past);
+      const pastRank = {};
+      pastSorted.forEach((p, i) => {
+        pastRank[p.id] = i + 1;
+      });
+
+      const finalRankings = withChange.map((p) => ({
+        ...p,
+        rank_change: (pastRank[p.id] || p.rank) - p.rank,
+      }));
+
+      setRankings(finalRankings);
     } catch (error) {
       console.error('Error fetching rankings:', error);
       setRankings([]);
@@ -927,13 +961,27 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
                   <div className={`rank-badge rank-${player.rank <= 3 ? player.rank : 'other'}`}>
                     #{player.rank}
                   </div>
+                  <span className="ml-2 text-sm">
+                    {player.rank_change > 0
+                      ? `▲${player.rank_change}`
+                      : player.rank_change < 0
+                      ? `▼${Math.abs(player.rank_change)}`
+                      : '='}
+                  </span>
                 </div>
               </td>
               <td className="font-semibold text-yellow-400">{player.username}</td>
               <td>
-                <span className="elo-badge">
-                  {player.elo_rating}
-                </span>
+                <div className="flex items-center">
+                  <span className="elo-badge">{player.elo_rating}</span>
+                  <span className="ml-2 text-sm">
+                    {player.elo_change > 0
+                      ? `▲${player.elo_change}`
+                      : player.elo_change < 0
+                      ? `▼${Math.abs(player.elo_change)}`
+                      : '='}
+                  </span>
+                </div>
               </td>
               <td>{player.matches_played}</td>
               <td className="text-green-400 font-semibold">{player.matches_won}</td>
