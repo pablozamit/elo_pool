@@ -10,6 +10,37 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
+// Minimal achievement catalog used by the client when the backend is not
+// available. Each achievement defines an id, the points it grants and a
+// condition function that receives user stats.
+const ACHIEVEMENTS = [
+  {
+    id: 'first_match',
+    points: 25,
+    condition: (s) => s.matches_played >= 1,
+  },
+  {
+    id: 'first_victory',
+    points: 50,
+    condition: (s) => s.matches_won >= 1,
+  },
+  {
+    id: 'rookie',
+    points: 75,
+    condition: (s) => s.matches_played >= 5,
+  },
+  {
+    id: 'getting_started',
+    points: 100,
+    condition: (s) => s.matches_won >= 3,
+  },
+  {
+    id: 'rising_star',
+    points: 150,
+    condition: (s) => s.elo_rating >= 1300,
+  },
+];
+
 const normalizeUser = (u) => ({
   id: u.id,
   username: u.Username || u.username,
@@ -72,6 +103,11 @@ const normalizeMatch = (m) => {
   if (result.winner_id === result.player1_id) {
     result.winner_username = result.player1_username;
   } else if (result.winner_id === result.player2_id) {
+    result.winner_username = result.player2_username;
+  } else if (result.winner_id === result.player1_username) {
+    // Backwards compatibility with old records storing username
+    result.winner_username = result.player1_username;
+  } else if (result.winner_id === result.player2_username) {
     result.winner_username = result.player2_username;
   }
   return result;
@@ -248,18 +284,21 @@ export const searchUsers = async (query) => {
 export const fetchUserBadges = async (userId) => {
   const all = await listRecords('UserBadges');
   const badges = all.filter((b) => b.user_id === userId);
-  // In this simplified Airtable implementation we don't store the
-  // aggregated achievement stats (level, points, etc.).  The frontend
-  // components however expect an object with a `badges` array and some
-  // additional fields.  To avoid runtime errors when those fields are
-  // missing we return a minimal structure here.
+
+  let total_points = 0;
+  badges.forEach((b) => {
+    const badge = ACHIEVEMENTS.find((a) => a.id === b.badge_id);
+    if (badge) total_points += badge.points;
+  });
+  const level = Math.floor(total_points / 100) + 1;
+
   return {
     user_id: userId,
     badges,
-    total_points: 0,
-    level: 1,
-    experience: 0,
-    next_level_exp: 100,
+    total_points,
+    level,
+    experience: total_points,
+    next_level_exp: (level) * 100,
   };
 };
 
@@ -268,10 +307,38 @@ export const fetchBadges = async () => {
 };
 
 export const checkAchievements = async (userId) => {
-  const userAchievements = await fetchUserBadges(userId);
-  // `fetchUserBadges` now returns the minimal achievement structure
-  // so we expose only the newly earned badges array for the check call
-  return { new_badges: userAchievements.badges };
+  const users = await listRecords('Users');
+  const user = users.find((u) => u.id === userId);
+  if (!user) return { new_badges: [] };
+
+  const matches = await listRecords('Matches');
+  const confirmed = matches.filter(
+    (m) => m.status === 'confirmed' && (m.player1_id === userId || m.player2_id === userId)
+  );
+  const wins = confirmed.filter((m) => m.winner_id === userId).length;
+
+  const stats = {
+    matches_played: confirmed.length,
+    matches_won: wins,
+    elo_rating: user.elo_rating,
+  };
+
+  const existing = (await fetchUserBadges(userId)).badges.map((b) => b.badge_id);
+  const new_badges = [];
+
+  for (const ach of ACHIEVEMENTS) {
+    if (existing.includes(ach.id)) continue;
+    if (ach.condition(stats)) {
+      await createRecord('UserBadges', {
+        User: userId,
+        Badge: ach.id,
+        'Earned At': new Date().toISOString(),
+      });
+      new_badges.push(ach);
+    }
+  }
+
+  return { new_badges };
 };
 
 export { denormalizeUser };

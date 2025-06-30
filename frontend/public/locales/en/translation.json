@@ -33,5 +33,6 @@
   "newPosition": "New position",
   "positionUp": "up {{count}}",
   "positionDown": "down {{count}}",
-  "positionNoChange": "no change"
+  "positionNoChange": "no change",
+  "achievements": "Achievements"
 }
