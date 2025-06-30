@@ -23,6 +23,22 @@ import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
 
+const ELO_WEIGHTS = {
+  rey_mesa: 1.0,
+  torneo: 1.5,
+  liga_grupos: 2.0,
+  liga_finales: 2.5,
+};
+
+const calculateEloChange = (winnerElo, loserElo, matchType) => {
+  const K = 32 * ELO_WEIGHTS[matchType];
+  const expectedWinner = 1 / (1 + 10 ** ((loserElo - winnerElo) / 400));
+  const expectedLoser = 1 / (1 + 10 ** ((winnerElo - loserElo) / 400));
+  const newWinnerElo = winnerElo + K * (1 - expectedWinner);
+  const newLoserElo = loserElo + K * (0 - expectedLoser);
+  return { newWinnerElo, newLoserElo };
+};
+
 // Base Airtable interaction is handled via api/airtable.js
 
 // Auth Context
@@ -488,7 +504,7 @@ const Dashboard = () => {
             <RankingsTab rankings={rankings} onPlayerClick={setSelectedPlayer} />
           )}
           {user && activeTab === 'submit' && (
-            <SubmitMatchTab onMatchSubmitted={() => {
+            <SubmitMatchTab rankings={rankings} onMatchSubmitted={() => {
               fetchRankings();
               fetchMatches();
               fetchPendingMatches();
@@ -931,7 +947,7 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
   </div>
 );
 
-const SubmitMatchTab = ({ onMatchSubmitted }) => {
+const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
@@ -946,6 +962,8 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
   const [opponentSuggestions, setOpponentSuggestions] = useState([]);
   const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState(null);
+  const [selectedOpponent, setSelectedOpponent] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1018,9 +1036,54 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
   }, [formData.opponent_username]);
 
   const handleSuggestionClick = (suggestion) => {
-    setFormData({...formData, opponent_username: suggestion.username});
+    setFormData({ ...formData, opponent_username: suggestion.username });
+    setSelectedOpponent(suggestion);
     setOpponentSuggestions([]);
   };
+
+  useEffect(() => {
+    if (!selectedOpponent || rankings.length === 0) {
+      setPreview(null);
+      return;
+    }
+    const opponentRankObj = rankings.find((p) => p.username === selectedOpponent.username);
+    const userRankObj = rankings.find((p) => p.username === user.username);
+    if (!opponentRankObj || !userRankObj) {
+      setPreview(null);
+      return;
+    }
+    const winnerElo = formData.won ? user.elo_rating : selectedOpponent.elo_rating;
+    const loserElo = formData.won ? selectedOpponent.elo_rating : user.elo_rating;
+    const { newWinnerElo, newLoserElo } = calculateEloChange(winnerElo, loserElo, formData.match_type);
+    const userNewElo = formData.won ? newWinnerElo : newLoserElo;
+    const opponentNewElo = formData.won ? newLoserElo : newWinnerElo;
+
+    const updated = rankings
+      .map((p) => {
+        if (p.username === user.username) return { ...p, elo_rating: userNewElo };
+        if (p.username === selectedOpponent.username) return { ...p, elo_rating: opponentNewElo };
+        return p;
+      })
+      .sort((a, b) => b.elo_rating - a.elo_rating);
+
+    const newUserRank = updated.findIndex((p) => p.username === user.username) + 1;
+    const newOppRank = updated.findIndex((p) => p.username === selectedOpponent.username) + 1;
+    const currentUserRank = rankings.findIndex((p) => p.username === user.username) + 1;
+    const currentOppRank = rankings.findIndex((p) => p.username === selectedOpponent.username) + 1;
+
+    setPreview({
+      userNewElo,
+      opponentNewElo,
+      userRank: newUserRank,
+      opponentRank: newOppRank,
+      userChange: userNewElo - user.elo_rating,
+      opponentChange: opponentNewElo - selectedOpponent.elo_rating,
+      userRankDiff: currentUserRank - newUserRank,
+      opponentRankDiff: currentOppRank - newOppRank,
+      currentUserRank,
+      currentOppRank,
+    });
+  }, [selectedOpponent, formData.won, formData.match_type, rankings, user]);
 
   return (
     <div className="space-y-6">
@@ -1050,7 +1113,8 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
             className="form-input"
             value={formData.opponent_username}
             onChange={(e) => {
-              setFormData({...formData, opponent_username: e.target.value});
+              setFormData({ ...formData, opponent_username: e.target.value });
+              setSelectedOpponent(null);
             }}
             placeholder="Buscar jugador..."
             autoComplete="off"
@@ -1127,6 +1191,36 @@ const SubmitMatchTab = ({ onMatchSubmitted }) => {
             </label>
           </div>
         </div>
+
+        {preview && (
+          <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4 space-y-2 text-sm">
+            <h4 className="text-center text-yellow-400 font-semibold">{t('eloPreviewTitle')}</h4>
+            <div className="flex justify-between">
+              <div className="w-1/2 pr-2">
+                <div className="font-bold text-white">{user.username}</div>
+                <div>{t('newElo')}: {user.elo_rating.toFixed(0)} → {preview.userNewElo.toFixed(0)} ({preview.userChange >= 0 ? '+' : ''}{preview.userChange.toFixed(1)})</div>
+                <div>{t('newPosition')}: {preview.currentUserRank} → {preview.userRank} (
+                  {preview.userRankDiff > 0
+                    ? t('positionUp', { count: preview.userRankDiff })
+                    : preview.userRankDiff < 0
+                    ? t('positionDown', { count: -preview.userRankDiff })
+                    : t('positionNoChange')}
+                )</div>
+              </div>
+              <div className="w-1/2 pl-2">
+                <div className="font-bold text-white">{selectedOpponent.username}</div>
+                <div>{t('newElo')}: {selectedOpponent.elo_rating.toFixed(0)} → {preview.opponentNewElo.toFixed(0)} ({preview.opponentChange >= 0 ? '+' : ''}{preview.opponentChange.toFixed(1)})</div>
+                <div>{t('newPosition')}: {preview.currentOppRank} → {preview.opponentRank} (
+                  {preview.opponentRankDiff > 0
+                    ? t('positionUp', { count: preview.opponentRankDiff })
+                    : preview.opponentRankDiff < 0
+                    ? t('positionDown', { count: -preview.opponentRankDiff })
+                    : t('positionNoChange')}
+                )</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           type="submit"

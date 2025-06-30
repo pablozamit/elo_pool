@@ -25,5 +25,11 @@
   "noAccount": "¿No tienes cuenta?",
   "alreadyAccount": "¿Ya tienes cuenta?",
   "loginTitle": "Inicia sesión en tu cuenta",
-  "registerTitle": "Crea tu cuenta de jugador"
+  "registerTitle": "Crea tu cuenta de jugador",
+  "eloPreviewTitle": "Previsualización del cambio de ELO",
+  "newElo": "Nuevo ELO",
+  "newPosition": "Nueva posición",
+  "positionUp": "sube {{count}}",
+  "positionDown": "baja {{count}}",
+  "positionNoChange": "sin cambio"
 }
