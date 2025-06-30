@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List
 import uuid
 
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_, and_, func
 from sqlalchemy.orm import Session
 
 from .achievements import (
@@ -87,6 +87,41 @@ async def calculate_user_stats(db: Session, user_id: str) -> Dict:
         if m.winner_id == user_id:
             key_wins = f"{m.match_type}_wins"
             stats[key_wins] = stats.get(key_wins, 0) + 1
+
+    now = datetime.utcnow()
+
+    async def is_leader(start_date: datetime) -> bool:
+        result = await db.execute(
+            select(MatchDB.winner_id, func.count(MatchDB.id))
+            .where(
+                and_(
+                    MatchDB.status == "confirmed",
+                    MatchDB.confirmed_at >= start_date,
+                    MatchDB.confirmed_at < now,
+                )
+            )
+            .group_by(MatchDB.winner_id)
+            .order_by(func.count(MatchDB.id).desc())
+        )
+        rows = result.all()
+        if not rows:
+            return False
+        max_wins = rows[0][1]
+        leaders = [r[0] for r in rows if r[1] == max_wins and r[1] > 0]
+        return user_id in leaders
+
+    start_day = datetime(now.year, now.month, now.day)
+    start_week = start_day - timedelta(days=start_day.weekday())
+    start_month = datetime(now.year, now.month, 1)
+    quarter_month = 3 * ((now.month - 1) // 3) + 1
+    start_quarter = datetime(now.year, quarter_month, 1)
+    start_year = datetime(now.year, 1, 1)
+
+    stats["daily_wins_leader"] = await is_leader(start_day)
+    stats["weekly_wins_leader"] = await is_leader(start_week)
+    stats["monthly_wins_leader"] = await is_leader(start_month)
+    stats["quarter_wins_leader"] = await is_leader(start_quarter)
+    stats["yearly_wins_leader"] = await is_leader(start_year)
 
     return stats
 
