@@ -191,33 +191,9 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
 # Routes
 @api_router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    # Check if username already exists
-    result = await db.execute(select(UserDB).where(UserDB.username == user_data.username))
-    existing_user = result.scalar_one_or_none()
-    
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Create new user
-    user_db = UserDB(
-        id=str(uuid.uuid4()),
-        username=user_data.username,
-        password_hash=hash_password(user_data.password)
-    )
-    
-    db.add(user_db)
-    await db.commit()
-    await db.refresh(user_db)
-    
-    return UserResponse(
-        id=user_db.id,
-        username=user_db.username,
-        elo_rating=user_db.elo_rating,
-        matches_played=user_db.matches_played,
-        matches_won=user_db.matches_won,
-        is_admin=user_db.is_admin,
-        is_active=user_db.is_active,
-        created_at=user_db.created_at
+    raise HTTPException(
+        status_code=403,
+        detail="New registrations are not allowed. Please contact with an Admin."
     )
 
 @api_router.post("/login")
