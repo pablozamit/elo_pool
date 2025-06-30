@@ -175,34 +175,52 @@ const normalizers = {
 };
 
 export const listRecords = async (table, params = '') => {
+  console.group('Airtable listRecords');
+  console.log('Llamando a Airtable:', table, params);
   const url = `${BASE_URL}/${table}${params}`;
   const response = await axios.get(url, { headers });
   const records = response.data.records.map((r) => {
     const item = { id: r.id, ...r.fields };
     return normalizers[table] ? normalizers[table](item) : item;
   });
+  console.log('Respuesta Airtable:', records);
+  console.groupEnd();
   return records;
 };
 
 export const createRecord = async (table, fields) => {
+  console.group('Airtable createRecord');
+  console.log('Llamando a Airtable:', table, fields);
   const url = `${BASE_URL}/${table}`;
   const payload = { fields };
   const response = await axios.post(url, payload, { headers });
   const record = { id: response.data.id, ...response.data.fields };
-  return normalizers[table] ? normalizers[table](record) : record;
+  const out = normalizers[table] ? normalizers[table](record) : record;
+  console.log('Respuesta Airtable:', out);
+  console.groupEnd();
+  return out;
 };
 
 export const updateRecord = async (table, id, fields) => {
+  console.group('Airtable updateRecord');
+  console.log('Llamando a Airtable:', table, id, fields);
   const url = `${BASE_URL}/${table}/${id}`;
   const payload = { fields };
   const response = await axios.patch(url, payload, { headers });
   const record = { id: response.data.id, ...response.data.fields };
-  return normalizers[table] ? normalizers[table](record) : record;
+  const out = normalizers[table] ? normalizers[table](record) : record;
+  console.log('Respuesta Airtable:', out);
+  console.groupEnd();
+  return out;
 };
 
 export const deleteRecord = async (table, id) => {
+  console.group('Airtable deleteRecord');
+  console.log('Llamando a Airtable:', table, id);
   const url = `${BASE_URL}/${table}/${id}`;
-  await axios.delete(url, { headers });
+  const resp = await axios.delete(url, { headers });
+  console.log('Respuesta Airtable:', resp.status);
+  console.groupEnd();
 };
 
 export const findRecordsByField = async (table, field, value) => {
@@ -211,17 +229,24 @@ export const findRecordsByField = async (table, field, value) => {
 };
 
 export const loginUser = async (username, password) => {
+  console.group('Airtable loginUser');
+  console.log('Credenciales', { username, password });
   const users = await listRecords('Users');
   const user = users.find(
     (u) => u.username === username && u.password === password
   );
   if (!user) {
+    console.groupEnd();
     throw new Error('Invalid credentials');
   }
+  console.log('Usuario encontrado', user.id);
+  console.groupEnd();
   return user;
 };
 
 export const registerUser = async (username, password) => {
+  console.group('Airtable registerUser');
+  console.log('Datos', { username, password });
   const fields = denormalizeUser({
     username,
     password,
@@ -231,36 +256,60 @@ export const registerUser = async (username, password) => {
     is_admin: false,
     is_active: true,
   });
-  return createRecord('Users', fields);
+  const record = await createRecord('Users', fields);
+  console.groupEnd();
+  return record;
 };
 
 export const fetchMatchesForUser = async (username) => {
+  console.group('Airtable fetchMatchesForUser');
+  console.log('Usuario', username);
   const all = await listRecords('Matches');
-  return all.filter(
+  const filtered = all.filter(
     (m) => m.player1_username === username || m.player2_username === username
   );
+  console.log('Matches encontrados', filtered.length);
+  console.groupEnd();
+  return filtered;
 };
 
 export const fetchPendingMatchesForUser = async (username) => {
+  console.group('Airtable fetchPendingMatchesForUser');
+  console.log('Usuario', username);
   const all = await listRecords('Matches');
-  return all.filter(
+  const filtered = all.filter(
     (m) =>
       m.status === 'pending' &&
       (m.player1_username === username || m.player2_username === username)
   );
+  console.log('Pendientes encontrados', filtered.length);
+  console.groupEnd();
+  return filtered;
 };
 
 export const fetchAllPendingMatches = async () => {
+  console.group('Airtable fetchAllPendingMatches');
   const all = await listRecords('Matches');
-  return all.filter((m) => m.status === 'pending');
+  const pending = all.filter((m) => m.status === 'pending');
+  console.log('Pendientes totales', pending.length);
+  console.groupEnd();
+  return pending;
 };
 
 export const createMatch = async (fields) => {
-  return createRecord('Matches', denormalizeMatch(fields));
+  console.group('Airtable createMatch');
+  console.log('Campos', fields);
+  const record = await createRecord('Matches', denormalizeMatch(fields));
+  console.groupEnd();
+  return record;
 };
 
 export const updateMatch = async (id, fields) => {
-  return updateRecord('Matches', id, denormalizeMatch(fields));
+  console.group('Airtable updateMatch');
+  console.log('ID', id, 'Campos', fields);
+  const record = await updateRecord('Matches', id, denormalizeMatch(fields));
+  console.groupEnd();
+  return record;
 };
 
 export const fetchRecentMatches = async (days = 7) => {
@@ -270,18 +319,29 @@ export const fetchRecentMatches = async (days = 7) => {
 };
 
 export const fetchRankings = async () => {
+  console.group('Airtable fetchRankings');
   const users = await listRecords('Users');
-  return users.sort((a, b) => b.elo_rating - a.elo_rating);
+  const sorted = users.sort((a, b) => b.elo_rating - a.elo_rating);
+  console.log('Rankings obtenidos:', sorted.length);
+  console.groupEnd();
+  return sorted;
 };
 
 export const searchUsers = async (query) => {
+  console.group('Airtable searchUsers');
+  console.log('Query', query);
   const users = await listRecords('Users');
-  return users.filter((u) =>
+  const filtered = users.filter((u) =>
     u.username.toLowerCase().includes(query.toLowerCase())
   );
+  console.log('Resultados', filtered.length);
+  console.groupEnd();
+  return filtered;
 };
 
 export const fetchUserBadges = async (userId) => {
+  console.group('Airtable fetchUserBadges');
+  console.log('Usuario', userId);
   const all = await listRecords('UserBadges');
   const badges = all.filter((b) => b.user_id === userId);
 
@@ -292,24 +352,36 @@ export const fetchUserBadges = async (userId) => {
   });
   const level = Math.floor(total_points / 100) + 1;
 
-  return {
+  const result = {
     user_id: userId,
     badges,
     total_points,
     level,
     experience: total_points,
-    next_level_exp: (level) * 100,
+    next_level_exp: level * 100,
   };
+  console.log('Respuesta Airtable:', result);
+  console.groupEnd();
+  return result;
 };
 
 export const fetchBadges = async () => {
-  return listRecords('Badges');
+  console.group('Airtable fetchBadges');
+  const data = await listRecords('Badges');
+  console.log('Badges obtenidos:', data.length);
+  console.groupEnd();
+  return data;
 };
 
 export const checkAchievements = async (userId) => {
+  console.group('Airtable checkAchievements');
+  console.log('Usuario', userId);
   const users = await listRecords('Users');
   const user = users.find((u) => u.id === userId);
-  if (!user) return { new_badges: [] };
+  if (!user) {
+    console.groupEnd();
+    return { new_badges: [] };
+  }
 
   const matches = await listRecords('Matches');
   const confirmed = matches.filter(
@@ -338,6 +410,8 @@ export const checkAchievements = async (userId) => {
     }
   }
 
+  console.log('Badges obtenidos', new_badges.length);
+  console.groupEnd();
   return { new_badges };
 };
 

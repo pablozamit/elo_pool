@@ -32,11 +32,15 @@ const ELO_WEIGHTS = {
 };
 
 const calculateEloChange = (winnerElo, loserElo, matchType) => {
+  console.group('Calculo ELO');
+  console.log('Entradas:', { winnerElo, loserElo, matchType });
   const K = 32 * ELO_WEIGHTS[matchType];
   const expectedWinner = 1 / (1 + 10 ** ((loserElo - winnerElo) / 400));
   const expectedLoser = 1 / (1 + 10 ** ((winnerElo - loserElo) / 400));
   const newWinnerElo = winnerElo + K * (1 - expectedWinner);
   const newLoserElo = loserElo + K * (0 - expectedLoser);
+  console.log('Salidas:', { newWinnerElo, newLoserElo });
+  console.groupEnd();
   return { newWinnerElo, newLoserElo };
 };
 
@@ -59,28 +63,41 @@ const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
+    console.group('Login');
+    console.log('Credenciales ingresadas:', { username, password });
     try {
       const userData = await loginUser(username, password);
+      console.log('Login exitoso para', username);
       localStorage.setItem('token', 'airtable');
       localStorage.setItem('user', JSON.stringify(userData));
       setToken('airtable');
       setUser(userData);
+      console.groupEnd();
       return { success: true };
     } catch (error) {
+      console.error('Error de login:', error.message);
+      console.groupEnd();
       return { success: false, error: 'Error de login' };
     }
   };
 
   const register = async (username, password) => {
+    console.group('Registro');
+    console.log('Datos de registro:', { username, password });
     try {
       await registerUser(username, password);
+      console.log('Registro exitoso para', username);
+      console.groupEnd();
       return { success: true, message: '¡Registro exitoso! Por favor, inicia sesión.' };
     } catch (error) {
+      console.error('Error de registro:', error.message);
+      console.groupEnd();
       return { success: false, error: 'Error de registro' };
     }
   };
 
   const logout = () => {
+    console.log('Cerrando sesión');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
@@ -123,6 +140,9 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.group('Formulario de autenticación');
+    console.log('Modo:', isLoginMode ? 'login' : 'register');
+    console.log('Datos ingresados:', formData);
     setFormLoading(true);
     setError('');
     setMessage('');
@@ -130,25 +150,31 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
     if (isLoginMode) {
       const result = await login(formData.username, formData.password);
       if (!result.success) {
+        console.log('Login fallido');
         setError(result.error);
       } else {
+        console.log('Login completado');
         if (onLoginSuccess) onLoginSuccess();
       }
     } else {
       const result = await authRegister(formData.username, formData.password);
       if (result.success) {
+        console.log('Registro completado');
         setIsLoginMode(true);
         setFormData({ username: '', password: '' });
         setMessage(result.message || '¡Registro exitoso! Por favor, inicia sesión.');
         if (onSwitchMode) onSwitchMode('login');
       } else {
+        console.log('Registro fallido');
         setError(result.error);
       }
     }
     setFormLoading(false);
+    console.groupEnd();
   };
 
   const handleSwitchMode = () => {
+    console.log('Cambiando modo de formulario');
     setIsLoginMode(!isLoginMode);
     setError('');
     setMessage('');
@@ -263,9 +289,12 @@ const Dashboard = () => {
 
   // Fetch rankings with 7-day evolution
   const fetchRankings = async () => {
+    console.group('Fetch Rankings');
     try {
       const players = await airtableFetchRankings();
+      console.log('Jugadores obtenidos:', players.length);
       const recent = await fetchRecentMatches(7);
+      console.log('Partidos recientes:', recent.length);
 
       const changeMap = {};
       players.forEach((p) => {
@@ -299,43 +328,54 @@ const Dashboard = () => {
       }));
 
       setRankings(finalRankings);
+      console.log('Rankings actualizados, total:', finalRankings.length);
     } catch (error) {
       console.error('Error fetching rankings:', error);
       setRankings([]);
     }
+    console.groupEnd();
   };
 
   // Fetch user-specific matches
   const fetchMatches = async () => {
     if (!user) return;
+    console.group('Fetch Matches');
     try {
       const data = await fetchMatchesForUser(user.username);
+      console.log('Matches obtenidos:', data.length);
       setMatches(data);
+      console.log('Actualizados matches del usuario');
     } catch (error) {
       console.error('Error fetching matches:', error);
       setMatches([]);
     }
+    console.groupEnd();
   };
 
   // Fetch user-specific pending matches
   const fetchPendingMatches = async () => {
     if (!user) return;
+    console.group('Fetch Pending Matches');
     try {
       const data = user.is_admin
         ? await fetchAllPendingMatches()
         : await fetchPendingMatchesForUser(user.username);
       setPendingMatches(data);
+      console.log('Pendientes obtenidos:', data.length);
     } catch (error) {
       console.error('Error fetching pending matches:', error);
       setPendingMatches([]);
     }
+    console.groupEnd();
   };
 
   // Check for new achievements
   const checkAchievements = async () => {
     if (!user) return;
+    console.group('Check Achievements');
     try {
       const data = await checkAchievementsAPI(user.id);
+      console.log('Badges nuevos:', data.new_badges?.length || 0);
       if (data.new_badges && data.new_badges.length > 0) {
         setAchievementNotifications(data.new_badges);
         setNewAchievementCount((c) => c + data.new_badges.length);
@@ -343,6 +383,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error checking achievements:', error);
     }
+    console.groupEnd();
   };
 
   useEffect(() => {
@@ -372,9 +413,11 @@ const Dashboard = () => {
 
   const confirmMatch = async (matchId) => {
     if (!user) return;
+    console.group('Confirmar partido');
     try {
       const match = pendingMatches.find((m) => m.id === matchId);
       if (!match) throw new Error('Match not found');
+      console.log('Partido a confirmar:', matchId);
 
       const player1 = rankings.find((p) => p.id === match.player1_id);
       const player2 = rankings.find((p) => p.id === match.player2_id);
@@ -416,23 +459,28 @@ const Dashboard = () => {
       fetchRankings();
       fetchMatches();
       checkAchievements();
+      console.log('Partido confirmado correctamente');
     } catch (error) {
       console.error('Error confirming match:', error);
       setActionError('Error confirming match');
       alert('Error confirming match');
     }
+    console.groupEnd();
   };
 
   const rejectMatch = async (matchId) => {
     if (!user) return;
+    console.group('Rechazar partido');
     try {
       await updateMatch(matchId, { status: 'rejected' });
       fetchPendingMatches();
+      console.log('Partido rechazado', matchId);
     } catch (error) {
       console.error('Error rejecting match:', error);
       setActionError('Error rejecting match');
       alert('Error rejecting match');
     }
+    console.groupEnd();
   };
 
   const TabButton = ({ tab, label, icon, disabled = false, count = null }) => (
@@ -647,15 +695,18 @@ const AdminTab = () => {
   });
 
   const fetchUsers = async () => {
+    console.group('Fetch Users');
     setLoading(true);
     try {
       const data = await listRecords('Users');
       setUsers(data);
+      console.log('Usuarios cargados:', data.length);
     } catch (error) {
       setError('Error al cargar usuarios');
       console.error('Error fetching users:', error);
     }
     setLoading(false);
+    console.groupEnd();
   };
 
   useEffect(() => {
@@ -664,6 +715,7 @@ const AdminTab = () => {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
+    console.group('Crear usuario');
     setLoading(true);
     setError('');
     setSuccess('');
@@ -681,6 +733,7 @@ const AdminTab = () => {
           matches_won: 0,
         })
       );
+      console.log('Usuario creado');
       setSuccess('Usuario creado exitosamente');
       setCreateFormData({
         username: '',
@@ -691,25 +744,31 @@ const AdminTab = () => {
       setShowCreateForm(false);
       fetchUsers();
     } catch (error) {
+      console.error('Error creando usuario:', error);
       setError(error.response?.data?.detail || 'Error al crear usuario');
     }
     setLoading(false);
+    console.groupEnd();
   };
 
   const handleUpdateUser = async (userId, updateData) => {
+    console.group('Actualizar usuario');
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
       await updateRecord('Users', userId, denormalizeUser(updateData));
+      console.log('Usuario actualizado', userId);
       setSuccess('Usuario actualizado exitosamente');
       setEditingUser(null);
       fetchUsers();
     } catch (error) {
+      console.error('Error actualizando usuario:', error);
       setError(error.response?.data?.detail || 'Error al actualizar usuario');
     }
     setLoading(false);
+    console.groupEnd();
   };
 
   const handleDeleteUser = async (userId, username) => {
@@ -717,18 +776,22 @@ const AdminTab = () => {
       return;
     }
 
+    console.group('Eliminar usuario');
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
       await deleteRecord('Users', userId);
+      console.log('Usuario eliminado', userId);
       setSuccess('Usuario eliminado exitosamente');
       fetchUsers();
     } catch (error) {
+      console.error('Error eliminando usuario:', error);
       setError(error.response?.data?.detail || 'Error al eliminar usuario');
     }
     setLoading(false);
+    console.groupEnd();
   };
 
   return (
@@ -1078,6 +1141,8 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.group('Enviando partido');
+    console.log('Datos del formulario:', formData);
     setLoading(true);
     setError('');
     setSuccess('');
@@ -1106,7 +1171,9 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         player1_total_matches: user.matches_played,
         player2_total_matches: opponent.matches_played,
       };
+      console.log('Payload:', matchPayload);
       await airtableCreateMatch(matchPayload);
+      console.log('Resultado enviado con éxito');
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
       setFormData({
         opponent_username: '',
@@ -1116,9 +1183,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       });
       onMatchSubmitted();
     } catch (error) {
+      console.error('Error enviando partido:', error);
       setError(error.response?.data?.detail || 'Error al enviar resultado');
     }
     setLoading(false);
+    console.groupEnd();
   };
 
   useEffect(() => {
@@ -1202,7 +1271,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     const currentUserRank = rankings.findIndex((p) => p.username === user.username) + 1;
     const currentOppRank = rankings.findIndex((p) => p.username === opponent.username) + 1;
 
-    setPreview({
+    const previewData = {
       userNewElo,
       opponentNewElo,
       userRank: newUserRank,
@@ -1213,7 +1282,9 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       opponentRankDiff: currentOppRank - newOppRank,
       currentUserRank,
       currentOppRank,
-    });
+    };
+    console.log('Preview ELO:', previewData);
+    setPreview(previewData);
   }, [selectedOpponent, formData.opponent_username, formData.my_score, formData.opponent_score, formData.match_type, rankings, user]);
 
   return (
