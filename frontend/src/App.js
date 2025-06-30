@@ -67,6 +67,11 @@ const useEloPreview = (formData, rankings, user, selectedOpponent) => {
       return;
     }
 
+    if (!user || !user.username) {
+      setPreview(null);
+      return;
+    }
+
     const opponent =
       selectedOpponent ||
       rankings.find((p) => p.username.toLowerCase() === opponent_username.toLowerCase());
@@ -76,7 +81,11 @@ const useEloPreview = (formData, rankings, user, selectedOpponent) => {
     }
 
     const currentUser = rankings.find((p) => p.username === user.username);
-    if (!currentUser) {
+    if (
+      !currentUser ||
+      !Number.isFinite(currentUser.elo_rating) ||
+      !Number.isFinite(opponent.elo_rating)
+    ) {
       setPreview(null);
       return;
     }
@@ -1204,11 +1213,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState(null);
   const [selectedOpponent, setSelectedOpponent] = useState(null);
-  const [simulatedResult, setSimulatedResult] = useState(null);
   const typedOpponent = rankings.find(
     (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
   );
   const opponent = selectedOpponent || typedOpponent;
+  const eloPreview = useEloPreview(formData, rankings, user, selectedOpponent);
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1299,21 +1308,6 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     };
   }, [formData.opponent_username]);
 
-  useEffect(() => {
-    if (
-      user &&
-      opponent &&
-      formData.match_type &&
-      formData.my_score !== '' &&
-      formData.opponent_score !== ''
-    ) {
-      const didAWin = parseInt(formData.my_score, 10) > parseInt(formData.opponent_score, 10);
-      const result = simulateEloChange(user, opponent, didAWin, formData.match_type);
-      setSimulatedResult(result);
-    } else {
-      setSimulatedResult(null);
-    }
-  }, [user, opponent, formData]);
 
 
   const handleSuggestionClick = (suggestion) => {
@@ -1434,18 +1428,26 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         </button>
       </form>
 
-      {simulatedResult && (
+      {eloPreview && (
         <div className="mt-8 bg-gray-800/70 p-4 rounded-lg border border-yellow-600 text-sm text-yellow-200">
           <p className="mb-2 font-semibold">🔍 Previsualización del cambio de ELO:</p>
           <ul className="space-y-1">
             <li>
-              <span className="font-bold">{user?.username}</span>: {user?.elo_rating} → <span className="text-green-400">{simulatedResult.eloA}</span> ({simulatedResult.change >= 0 ? '+' : ''}{simulatedResult.change})
+              <span className="font-bold">{eloPreview.user.username}</span>: {eloPreview.user.elo_rating} →{' '}
+              <span className="text-green-400">{eloPreview.simulatedEloA}</span>{' '}
+              ({eloPreview.change >= 0 ? '+' : ''}{eloPreview.change})
             </li>
             <li>
-              <span className="font-bold">{opponent?.username}</span>: {opponent?.elo_rating} → <span className="text-red-400">{simulatedResult.eloB}</span> ({-simulatedResult.change})
+              <span className="font-bold">{eloPreview.opponent.username}</span>: {eloPreview.opponent.elo_rating} →{' '}
+              <span className="text-red-400">{eloPreview.simulatedEloB}</span>{' '}
+              ({eloPreview.change >= 0 ? '-' : '+'}{Math.abs(eloPreview.change)})
             </li>
             <li>
-              <span className="text-yellow-400">⚠️ Tu posición en el ranking puede cambiar tras la confirmación</span>
+              <span className="text-yellow-400">
+                {eloPreview.deltaRank === 0
+                  ? 'Mantendrías tu posición actual'
+                  : `Tu nueva posición sería ${eloPreview.newRankUser} (${eloPreview.deltaRank > 0 ? '+' : ''}${eloPreview.deltaRank})`}
+              </span>
             </li>
           </ul>
         </div>

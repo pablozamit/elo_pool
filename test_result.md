@@ -273,6 +273,9 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Added frontend hook to simulate ELO change and show preview ranking"
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed preview showing NaN when user info unavailable and integrated useEloPreview hook"
 
   - task: "Mobile Responsive Design"
     implemented: true
