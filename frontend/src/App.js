@@ -50,7 +50,11 @@ const simulateEloChange = (playerA, playerB, didAWin, matchType) => {
   const scoreA = didAWin ? 1 : 0;
   const K = 32 * weight;
   const change = Math.round(K * (scoreA - expectedA));
-  return { eloA: playerA.elo_rating + change, eloB: playerB.elo_rating - change, change };
+  return {
+    eloA: Math.round(playerA.elo_rating + change),
+    eloB: Math.round(playerB.elo_rating - change),
+    change,
+  };
 };
 
 const useEloPreview = (formData, rankings, user, selectedOpponent) => {
@@ -1200,11 +1204,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [isSearchingOpponent, setIsSearchingOpponent] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState(null);
   const [selectedOpponent, setSelectedOpponent] = useState(null);
-  const preview = useEloPreview(formData, rankings, user, selectedOpponent);
+  const [simulatedResult, setSimulatedResult] = useState(null);
   const typedOpponent = rankings.find(
     (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
   );
-  const opponentToDisplay = selectedOpponent || typedOpponent;
+  const opponent = selectedOpponent || typedOpponent;
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1294,6 +1298,22 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       }
     };
   }, [formData.opponent_username]);
+
+  useEffect(() => {
+    if (
+      user &&
+      opponent &&
+      formData.match_type &&
+      formData.my_score !== '' &&
+      formData.opponent_score !== ''
+    ) {
+      const didAWin = parseInt(formData.my_score, 10) > parseInt(formData.opponent_score, 10);
+      const result = simulateEloChange(user, opponent, didAWin, formData.match_type);
+      setSimulatedResult(result);
+    } else {
+      setSimulatedResult(null);
+    }
+  }, [user, opponent, formData]);
 
 
   const handleSuggestionClick = (suggestion) => {
@@ -1398,21 +1418,6 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           </div>
         </div>
 
-        {preview && (
-          <div className="elo-preview">
-            <p>
-              {user.username}: {user.elo_rating.toFixed(0)} → {preview.simulatedEloA.toFixed(0)} (
-              {preview.change > 0 ? '+' : ''}{preview.change})
-            </p>
-            <p>
-              {preview.opponent.username}: {preview.opponent.elo_rating.toFixed(0)} →{' '}
-              {preview.simulatedEloB.toFixed(0)} ({preview.change > 0 ? '-' : '+'}
-              {Math.abs(preview.change)})
-            </p>
-            <p>Tu nueva posición estimada: #{preview.newRankUser} {preview.deltaRank !== 0 ? `(${preview.deltaRank > 0 ? '+' : ''}${preview.deltaRank})` : ''}</p>
-          </div>
-        )}
-
         <button
           type="submit"
           disabled={loading}
@@ -1428,6 +1433,23 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           )}
         </button>
       </form>
+
+      {simulatedResult && (
+        <div className="mt-8 bg-gray-800/70 p-4 rounded-lg border border-yellow-600 text-sm text-yellow-200">
+          <p className="mb-2 font-semibold">🔍 Previsualización del cambio de ELO:</p>
+          <ul className="space-y-1">
+            <li>
+              <span className="font-bold">{user?.username}</span>: {user?.elo_rating} → <span className="text-green-400">{simulatedResult.eloA}</span> ({simulatedResult.change >= 0 ? '+' : ''}{simulatedResult.change})
+            </li>
+            <li>
+              <span className="font-bold">{opponent?.username}</span>: {opponent?.elo_rating} → <span className="text-red-400">{simulatedResult.eloB}</span> ({-simulatedResult.change})
+            </li>
+            <li>
+              <span className="text-yellow-400">⚠️ Tu posición en el ranking puede cambiar tras la confirmación</span>
+            </li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
