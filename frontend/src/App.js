@@ -1026,6 +1026,10 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [debounceTimeout, setDebounceTimeout] = useState(null);
   const [selectedOpponent, setSelectedOpponent] = useState(null);
   const [preview, setPreview] = useState(null);
+  const typedOpponent = rankings.find(
+    (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
+  );
+  const opponentToDisplay = selectedOpponent || typedOpponent;
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1100,6 +1104,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     };
   }, [formData.opponent_username]);
 
+
   const handleSuggestionClick = (suggestion) => {
     setFormData({ ...formData, opponent_username: suggestion.username });
     setSelectedOpponent(suggestion);
@@ -1107,11 +1112,17 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   };
 
   useEffect(() => {
-    if (!selectedOpponent || rankings.length === 0) {
+    const opponent =
+      selectedOpponent ||
+      rankings.find(
+        (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
+      );
+
+    if (!opponent || rankings.length === 0) {
       setPreview(null);
       return;
     }
-    const opponentRankObj = rankings.find((p) => p.username === selectedOpponent.username);
+    const opponentRankObj = rankings.find((p) => p.username === opponent.username);
     const userRankObj = rankings.find((p) => p.username === user.username);
     if (!opponentRankObj || !userRankObj) {
       setPreview(null);
@@ -1124,8 +1135,8 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       return;
     }
     const iWon = myScore > oppScore;
-    const winnerElo = iWon ? user.elo_rating : selectedOpponent.elo_rating;
-    const loserElo = iWon ? selectedOpponent.elo_rating : user.elo_rating;
+    const winnerElo = iWon ? user.elo_rating : opponent.elo_rating;
+    const loserElo = iWon ? opponent.elo_rating : user.elo_rating;
     const { newWinnerElo, newLoserElo } = calculateEloChange(winnerElo, loserElo, formData.match_type);
     const userNewElo = iWon ? newWinnerElo : newLoserElo;
     const opponentNewElo = iWon ? newLoserElo : newWinnerElo;
@@ -1133,15 +1144,15 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     const updated = rankings
       .map((p) => {
         if (p.username === user.username) return { ...p, elo_rating: userNewElo };
-        if (p.username === selectedOpponent.username) return { ...p, elo_rating: opponentNewElo };
+        if (p.username === opponent.username) return { ...p, elo_rating: opponentNewElo };
         return p;
       })
       .sort((a, b) => b.elo_rating - a.elo_rating);
 
     const newUserRank = updated.findIndex((p) => p.username === user.username) + 1;
-    const newOppRank = updated.findIndex((p) => p.username === selectedOpponent.username) + 1;
+    const newOppRank = updated.findIndex((p) => p.username === opponent.username) + 1;
     const currentUserRank = rankings.findIndex((p) => p.username === user.username) + 1;
-    const currentOppRank = rankings.findIndex((p) => p.username === selectedOpponent.username) + 1;
+    const currentOppRank = rankings.findIndex((p) => p.username === opponent.username) + 1;
 
     setPreview({
       userNewElo,
@@ -1149,13 +1160,13 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       userRank: newUserRank,
       opponentRank: newOppRank,
       userChange: userNewElo - user.elo_rating,
-      opponentChange: opponentNewElo - selectedOpponent.elo_rating,
+      opponentChange: opponentNewElo - opponent.elo_rating,
       userRankDiff: currentUserRank - newUserRank,
       opponentRankDiff: currentOppRank - newOppRank,
       currentUserRank,
       currentOppRank,
     });
-  }, [selectedOpponent, formData.my_score, formData.opponent_score, formData.match_type, rankings, user]);
+  }, [selectedOpponent, formData.opponent_username, formData.my_score, formData.opponent_score, formData.match_type, rankings, user]);
 
   return (
     <div className="space-y-6">
@@ -1267,8 +1278,8 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
                 )</div>
               </div>
               <div className="w-1/2 pl-2">
-                <div className="font-bold text-white">{selectedOpponent.username}</div>
-                <div>{t('newElo')}: {selectedOpponent.elo_rating.toFixed(0)} → {preview.opponentNewElo.toFixed(0)} ({preview.opponentChange >= 0 ? '+' : ''}{preview.opponentChange.toFixed(1)})</div>
+                <div className="font-bold text-white">{opponentToDisplay?.username}</div>
+                <div>{t('newElo')}: {opponentToDisplay?.elo_rating.toFixed(0)} → {preview.opponentNewElo.toFixed(0)} ({preview.opponentChange >= 0 ? '+' : ''}{preview.opponentChange.toFixed(1)})</div>
                 <div>{t('newPosition')}: {preview.currentOppRank} → {preview.opponentRank} (
                   {preview.opponentRankDiff > 0
                     ? t('positionUp', { count: preview.opponentRankDiff })
