@@ -415,7 +415,10 @@ const Dashboard = () => {
 
   // Fetch user-specific matches
   const fetchMatches = async () => {
-    if (!user) return;
+    if (!user) {
+      console.warn('Usuario undefined en fetchMatches');
+      return;
+    }
     console.group('Fetch Matches');
     try {
       const data = await fetchMatchesForUser(user.username);
@@ -431,7 +434,10 @@ const Dashboard = () => {
 
   // Fetch user-specific pending matches
   const fetchPendingMatches = async () => {
-    if (!user) return;
+    if (!user) {
+      console.warn('Usuario undefined en fetchPendingMatches');
+      return;
+    }
     console.group('Fetch Pending Matches');
     try {
       const data = user.is_admin
@@ -448,7 +454,10 @@ const Dashboard = () => {
 
   // Check for new achievements
   const checkAchievements = async () => {
-    if (!user) return;
+    if (!user) {
+      console.warn('Usuario undefined en checkAchievements');
+      return;
+    }
     console.group('Check Achievements');
     try {
       const data = await checkAchievementsAPI(user.id);
@@ -463,14 +472,22 @@ const Dashboard = () => {
     console.groupEnd();
   };
 
+  // Cargar rankings al montar el componente
   useEffect(() => {
     fetchRankings();
+  }, []);
+
+  // Ejecutar acciones dependientes del usuario
+  useEffect(() => {
     if (user) {
+      console.log('Usuario disponible:', user.username);
+      fetchRankings();
       setShowLoginView(false);
       fetchMatches();
       fetchPendingMatches();
       checkAchievements();
     } else {
+      console.log('Usuario null, acceso restringido');
       setMatches([]);
       setPendingMatches([]);
       if (['submit', 'pending', 'history', 'admin'].includes(activeTab)) {
@@ -486,7 +503,10 @@ const Dashboard = () => {
   }, [activeTab]);
 
   const confirmMatch = async (matchId) => {
-    if (!user) return;
+    if (!user) {
+      console.warn('Usuario undefined en confirmMatch');
+      return;
+    }
     console.group('Confirmar partido');
     try {
       const match = pendingMatches.find((m) => m.id === matchId);
@@ -543,7 +563,10 @@ const Dashboard = () => {
   };
 
   const rejectMatch = async (matchId) => {
-    if (!user) return;
+    if (!user) {
+      console.warn('Usuario undefined en rejectMatch');
+      return;
+    }
     console.group('Rechazar partido');
     try {
       await updateMatch(matchId, { status: 'rejected' });
@@ -1189,6 +1212,15 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
 const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  if (!user) {
+    console.warn('Usuario undefined en SubmitMatchTab');
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🔒</div>
+        <p className="text-gray-400 mb-8">Debes iniciar sesión para registrar un resultado</p>
+      </div>
+    );
+  }
   const [formData, setFormData] = useState({
     opponent_username: '',
     match_type: 'rey_mesa',
