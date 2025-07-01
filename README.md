@@ -19,12 +19,18 @@ Una aplicación web completa para la gestión de un club de billar con sistema d
 - **Rankings automáticos** ordenados por ELO
 - **Estadísticas detalladas**: partidos jugados, ganados, porcentaje de victoria
 
+### 🎖️ Sistema de Logros y Gamificación
+- **Más de 50 badges** disponibles
+- **Notificaciones** al desbloquear un logro
+- **Progreso** visible en el perfil de cada jugador
+
 ### 🎯 Gestión de Partidos
 - **Envío de resultados** por cualquier jugador
 - **Sistema de confirmación** del oponente
 - **Historial completo** de partidos confirmados
 - **Gestión de partidos pendientes** con opciones de confirmar/rechazar
 - **4 tipos de partidos** con diferentes pesos ELO
+- **Previsualización** del cambio de ELO antes de confirmar un resultado
 
 ### ⚙️ Panel de Administración
 - **Interfaz completa de administración** (solo para admins)
@@ -49,7 +55,8 @@ Una aplicación web completa para la gestión de un club de billar con sistema d
 
 ### Backend
 - **FastAPI** - Framework web moderno y rápido
-- **MongoDB** - Base de datos NoSQL
+- **SQLite** - Base de datos ligera
+- **SQLAlchemy** - ORM asincrónico
 - **JWT** - Autenticación segura
 - **Python** - Lenguaje de programación
 
@@ -82,7 +89,7 @@ Una aplicación web completa para la gestión de un club de billar con sistema d
 ### Prerrequisitos
 - Python 3.8+
 - Node.js 14+
-- MongoDB
+- (Opcional) Variable `DATABASE_URL` si no se usa la ruta por defecto de SQLite
 
 ### Backend
 ```bash
@@ -101,8 +108,7 @@ npm start
 ### Variables de Entorno
 Configurar en `backend/.env`:
 ```
-MONGO_URL="mongodb://localhost:27017"
-DB_NAME="billiard_club"
+DATABASE_URL="sqlite+aiosqlite:///./pool_club.db"
 JWT_SECRET="your_super_secret_key"
 ```
 
@@ -177,9 +183,9 @@ Si defines las variables de Airtable, el frontend funcionará de forma autónoma
 - **Hashing seguro** de contraseñas
 
 ### Base de Datos
-- **Colecciones MongoDB**:
-  - `users`: Información de usuarios
-  - `matches`: Partidos y resultados
+- **Tablas SQLite**:
+  - `users`: información de usuarios
+  - `matches`: resultados de partidas
 - **Índices optimizados** para consultas rápidas
 - **Validación de datos** con Pydantic
 
