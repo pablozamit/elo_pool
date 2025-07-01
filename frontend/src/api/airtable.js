@@ -401,9 +401,15 @@ export const checkAchievements = async (userId) => {
   for (const ach of ACHIEVEMENTS) {
     if (existing.includes(ach.id)) continue;
     if (ach.condition(stats)) {
+      const badgeRecords = await findRecordsByField('Badges', 'Badge ID', ach.id);
+      if (badgeRecords.length === 0) {
+        console.error(`Badge with id '${ach.id}' not found in Airtable`);
+        throw new Error(`Badge with id '${ach.id}' not found`);
+      }
+      const badgeRecord = badgeRecords[0];
       await createRecord('UserBadges', {
         User: userId,
-        Badge: ach.id,
+        Badge: [badgeRecord.id],
         'Earned At': new Date().toISOString(),
       });
       new_badges.push(ach);
