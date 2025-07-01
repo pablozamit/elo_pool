@@ -468,14 +468,11 @@ const Dashboard = () => {
       fetchMatches();
       fetchPendingMatches();
       checkAchievements();
-      if (!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements')) {
-        setActiveTab('rankings');
-      }
     } else {
       setMatches([]);
       setPendingMatches([]);
-      if (activeTab !== 'rankings') {
-          setActiveTab('rankings');
+      if (['submit', 'pending', 'history', 'admin'].includes(activeTab)) {
+        setActiveTab('rankings');
       }
     }
   }, [user]);
@@ -687,20 +684,22 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="premium-nav mb-8 justify-center">
           <TabButton tab="rankings" label={t('rankings')} icon="🏆" />
-          <TabButton tab="submit" label={t('submitResult')} icon="📝" disabled={!user} />
-          <TabButton
-            tab="pending"
-            label={t('pendingMatches')}
-            icon="⏳"
-            disabled={!user}
-            count={pendingMatches.length}
-          />
-          <TabButton tab="history" label={t('matchHistory')} icon="📊" disabled={!user} />
+          {user && (
+            <>
+              <TabButton tab="submit" label={t('submitResult')} icon="📝" />
+              <TabButton
+                tab="pending"
+                label={t('pendingMatches')}
+                icon="⏳"
+                count={pendingMatches.length}
+              />
+              <TabButton tab="history" label={t('matchHistory')} icon="📊" />
+            </>
+          )}
           <TabButton
             tab="achievements"
             label={t('achievements')}
             icon="🎖️"
-            disabled={!user}
             count={newAchievementCount}
           />
           {user && user.is_admin && (
@@ -730,13 +729,13 @@ const Dashboard = () => {
           {user && activeTab === 'history' && (
             <HistoryTab matches={matches} currentUser={user} onPlayerClick={setSelectedPlayer} />
           )}
-          {user && activeTab === 'achievements' && (
+          {activeTab === 'achievements' && (
             <AchievementSystem currentUser={user} />
           )}
           {user && user.is_admin && activeTab === 'admin' && (
             <AdminTab />
           )}
-          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin' || activeTab === 'achievements') && (
+          {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin') && (
              <div className="text-center py-12">
               <div className="text-6xl mb-4">🔒</div>
               <h3 className="premium-title text-2xl mb-4">Acceso Restringido</h3>
