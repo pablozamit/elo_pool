@@ -313,6 +313,18 @@ frontend:
         agent: "main"
         comment: "Adjusted fetchUserBadges to return minimal achievement object to prevent undefined property errors"
 
+  - task: "Error Analysis with Gemini"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/utils/gemini.ts"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added analyzeErrorWithGemini utility to fetch suggestions from Gemini"
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
