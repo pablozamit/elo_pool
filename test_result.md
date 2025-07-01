@@ -232,11 +232,14 @@ frontend:
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented form with opponent selection, match type selection, result input, won/lost selection"
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed payload to send player IDs as arrays and map match type to label for Airtable"
 
   - task: "Pending Matches Management"
     implemented: true

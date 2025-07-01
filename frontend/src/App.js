@@ -1240,6 +1240,13 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     torneo: 'Torneo'
   };
 
+  const matchTypeLabels = {
+    rey_mesa: 'Rey de la Mesa',
+    liga_grupos: 'Liga - Grupos',
+    liga_finales: 'Liga - Finales',
+    torneo: 'Torneo',
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.group('Enviando partido');
@@ -1258,11 +1265,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       const matchPayload = {
         player1_username: user.username,
         player2_username: opponent.username,
-        player1_id: user.id,
-        player2_id: opponent.id,
-        match_type: formData.match_type,
+        player1_id: [user.id],
+        player2_id: [opponent.id],
+        match_type: matchTypeLabels[formData.match_type] || formData.match_type,
         result: `${myScore}-${oppScore}`,
-        winner_id: iWon ? user.id : opponent.id,
+        winner_id: [iWon ? user.id : opponent.id],
         status: 'pending',
         submitted_by: user.username,
         created_at: new Date().toISOString(),
