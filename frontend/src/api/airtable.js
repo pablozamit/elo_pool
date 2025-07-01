@@ -45,9 +45,24 @@ const normalizeUser = (u) => ({
   id: u.id,
   username: u.Username || u.username,
   password: u.Password || u.password,
-  elo_rating: u['ELO Rating'] ?? u.elo_rating,
-  matches_played: u['Matches Played'] ?? u.matches_played,
-  matches_won: u['Matches Won'] ?? u.matches_won,
+  elo_rating:
+    u['ELO Rating'] !== undefined
+      ? Number(u['ELO Rating'])
+      : u.elo_rating !== undefined
+      ? Number(u.elo_rating)
+      : undefined,
+  matches_played:
+    u['Matches Played'] !== undefined
+      ? Number(u['Matches Played'])
+      : u.matches_played !== undefined
+      ? Number(u.matches_played)
+      : undefined,
+  matches_won:
+    u['Matches Won'] !== undefined
+      ? Number(u['Matches Won'])
+      : u.matches_won !== undefined
+      ? Number(u.matches_won)
+      : undefined,
   is_admin: u['Is Admin'] ?? u.is_admin,
   is_active: u['Is Active'] ?? u.is_active,
   created_at: u['Created At'] ?? u.created_at,
