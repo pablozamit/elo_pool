@@ -61,83 +61,60 @@ const useEloPreview = (formData, rankings, user, opponentParam) => {
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
-    const { opponent_username, my_score, opponent_score, match_type } = formData;
-    if (!opponent_username || !match_type || my_score === '' || opponent_score === '') {
-      setPreview(null);
-      return;
-    }
-
-    if (!user || !user.username) {
-      setPreview(null);
-      return;
-    }
-
-    const opponent =
-      opponentParam ||
-      rankings.find((p) => p.username.toLowerCase() === opponent_username.toLowerCase());
-    if (!opponent) {
-      setPreview(null);
-      return;
-    }
-
-    const currentUser =
-      rankings.find((p) => p.username === user.username) || user;
     if (
-      !currentUser ||
-      !Number.isFinite(currentUser.elo_rating) ||
-      !Number.isFinite(opponent.elo_rating)
+      !user ||
+      !formData.opponent_username ||
+      !rankings.length ||
+      !formData.result ||
+      formData.result.trim() === ''
     ) {
       setPreview(null);
       return;
     }
 
-    const didAWin = parseInt(my_score, 10) > parseInt(opponent_score, 10);
-    const { eloA, eloB, change } = simulateEloChange(
-      currentUser,
-      opponent,
-      didAWin,
-      match_type
+    const player1 = user;
+    const player2 = rankings.find(
+      (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
     );
 
-    const baseRankings = [...rankings];
-    if (!baseRankings.find((p) => p.username === currentUser.username)) {
-      baseRankings.push(currentUser);
+    if (
+      !player1 ||
+      !player2 ||
+      isNaN(player1.elo_rating) ||
+      isNaN(player2.elo_rating)
+    ) {
+      setPreview(null);
+      return;
     }
-    if (!baseRankings.find((p) => p.username === opponent.username)) {
-      baseRankings.push(opponent);
+
+    const [score1, score2] = formData.result.split('-').map((x) => parseInt(x));
+    if (isNaN(score1) || isNaN(score2)) {
+      setPreview(null);
+      return;
     }
 
-    const newRankings = baseRankings
-      .map((p) => {
-        if (p.username === currentUser.username) return { ...p, elo_rating: eloA };
-        if (p.username === opponent.username) return { ...p, elo_rating: eloB };
-        return p;
-      })
-      .sort((a, b) => b.elo_rating - a.elo_rating);
+    const didPlayer1Win = score1 > score2;
 
-    const currentSorted = [...baseRankings].sort((a, b) => b.elo_rating - a.elo_rating);
-
-    const newRankUser = newRankings.findIndex((p) => p.username === currentUser.username) + 1;
-    const currentRankUser = currentSorted.findIndex((p) => p.username === currentUser.username) + 1;
+    const { eloA, eloB } = simulateEloChange(
+      player1,
+      player2,
+      didPlayer1Win,
+      formData.match_type
+    );
 
     setPreview({
-      user: currentUser,
-      opponent,
-      simulatedEloA: eloA,
-      simulatedEloB: eloB,
-      change,
-      newRankUser,
-      deltaRank: currentRankUser - newRankUser,
+      [player1.username]: {
+        current: player1.elo_rating,
+        next: eloA,
+        delta: eloA - player1.elo_rating,
+      },
+      [player2.username]: {
+        current: player2.elo_rating,
+        next: eloB,
+        delta: eloB - player2.elo_rating,
+      },
     });
-  }, [
-    formData.opponent_username,
-    formData.my_score,
-    formData.opponent_score,
-    formData.match_type,
-    rankings,
-    user,
-    opponentParam,
-  ]);
+  }, [user, rankings, formData]);
 
   return preview;
 };
@@ -1245,7 +1222,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
     );
   const opponent = selectedOpponent || typedOpponent;
-  const eloPreview = useEloPreview(formData, rankings, user, opponent);
+  const formDataForPreview = {
+    ...formData,
+    result: `${formData.my_score}-${formData.opponent_score}`,
+  };
+  const eloPreview = useEloPreview(formDataForPreview, rankings, user, opponent);
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1460,21 +1441,14 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           <p className="mb-2 font-semibold">🔍 Previsualización del cambio de ELO:</p>
           <ul className="space-y-1">
             <li>
-              <span className="font-bold">{eloPreview.user.username}</span>: {eloPreview.user.elo_rating} →{' '}
-              <span className="text-green-400">{eloPreview.simulatedEloA}</span>{' '}
-              ({eloPreview.change >= 0 ? '+' : ''}{eloPreview.change})
+              <span className="font-bold">{user.username}</span>: {eloPreview[user.username].current} →{' '}
+              <span className="text-green-400">{eloPreview[user.username].next}</span>{' '}
+              ({eloPreview[user.username].delta >= 0 ? '+' : ''}{eloPreview[user.username].delta})
             </li>
             <li>
-              <span className="font-bold">{eloPreview.opponent.username}</span>: {eloPreview.opponent.elo_rating} →{' '}
-              <span className="text-red-400">{eloPreview.simulatedEloB}</span>{' '}
-              ({eloPreview.change >= 0 ? '-' : '+'}{Math.abs(eloPreview.change)})
-            </li>
-            <li>
-              <span className="text-yellow-400">
-                {eloPreview.deltaRank === 0
-                  ? 'Mantendrías tu posición actual'
-                  : `Tu nueva posición sería ${eloPreview.newRankUser} (${eloPreview.deltaRank > 0 ? '+' : ''}${eloPreview.deltaRank})`}
-              </span>
+              <span className="font-bold">{opponent?.username || formData.opponent_username}</span>: {eloPreview[opponent?.username || formData.opponent_username].current} →{' '}
+              <span className="text-red-400">{eloPreview[opponent?.username || formData.opponent_username].next}</span>{' '}
+              ({eloPreview[opponent?.username || formData.opponent_username].delta >= 0 ? '+' : ''}{eloPreview[opponent?.username || formData.opponent_username].delta})
             </li>
           </ul>
         </div>
