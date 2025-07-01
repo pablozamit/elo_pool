@@ -5,13 +5,14 @@ export async function sendGeminiPrompt(prompt: string): Promise<string> {
     throw new Error('Missing Gemini API key');
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+  const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
 
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
         contents: [
@@ -23,6 +24,11 @@ export async function sendGeminiPrompt(prompt: string): Promise<string> {
     });
 
     if (!res.ok) {
+      if (res.status === 404) {
+        console.error('[Gemini] Error 404');
+        console.error('[Gemini] No se pudo generar sugerencia automática');
+        return '[Gemini] No se pudo generar sugerencia automática';
+      }
       console.error('Gemini API error', res.status, res.statusText);
       const errText = await res.text().catch(() => '');
       throw new Error(errText || `HTTP error ${res.status}`);

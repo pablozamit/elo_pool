@@ -1,4 +1,4 @@
-export async function analyzeErrorWithGemini(error: any): Promise<string> {
+export async function analyzeErrorWithGemini(error) {
   console.log('[Gemini] Received error object', error);
   const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
   if (!apiKey) {
@@ -12,12 +12,15 @@ export async function analyzeErrorWithGemini(error: any): Promise<string> {
     `Stack: ${error?.stack ?? ''}`;
   console.log('[Gemini] Built prompt', prompt);
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+  const url = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
   console.log('[Gemini] Sending request to', url);
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body: JSON.stringify({
       contents: [
         {
@@ -27,8 +30,12 @@ export async function analyzeErrorWithGemini(error: any): Promise<string> {
     }),
   });
   console.log('[Gemini] Response status', res.status);
-
   if (!res.ok) {
+    if (res.status === 404) {
+      console.error('[Gemini] Error 404');
+      console.error('[Gemini] No se pudo generar sugerencia automática');
+      return '[Gemini] No se pudo generar sugerencia automática';
+    }
     const errText = await res.text().catch(() => '');
     console.error('[Gemini] API error', res.status, errText);
     throw new Error(errText || `HTTP error ${res.status}`);
