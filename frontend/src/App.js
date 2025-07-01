@@ -1193,7 +1193,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     opponent_username: '',
     match_type: 'rey_mesa',
     my_score: '0',
-    opponent_score: '0'
+    opponent_score: '0',
+    break_and_run: false,
+    cleanup: false,
+    castigo_divino: false,
+    feliz_navidad: false
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1266,6 +1270,10 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         player2_elo_before: opponent.elo_rating,
         player1_total_matches: user.matches_played,
         player2_total_matches: opponent.matches_played,
+        break_and_run: formData.break_and_run,
+        cleanup: formData.cleanup,
+        castigo_divino: formData.castigo_divino,
+        feliz_navidad: formData.feliz_navidad,
       };
       console.log('Payload:', matchPayload);
       await airtableCreateMatch(matchPayload);
@@ -1275,7 +1283,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         opponent_username: '',
         match_type: 'rey_mesa',
         my_score: '0',
-        opponent_score: '0'
+        opponent_score: '0',
+        break_and_run: false,
+        cleanup: false,
+        castigo_divino: false,
+        feliz_navidad: false
       });
       onMatchSubmitted();
     } catch (error) {
@@ -1418,6 +1430,48 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
                 <option key={i} value={i}>{i}</option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label block mb-1">Opcionales</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-gray-300">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.break_and_run}
+                onChange={(e) => setFormData({ ...formData, break_and_run: e.target.checked })}
+                className="mr-2 accent-yellow-500"
+              />
+              Break &amp; Run
+            </label>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.cleanup}
+                onChange={(e) => setFormData({ ...formData, cleanup: e.target.checked })}
+                className="mr-2 accent-yellow-500"
+              />
+              Clean-Up
+            </label>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.castigo_divino}
+                onChange={(e) => setFormData({ ...formData, castigo_divino: e.target.checked })}
+                className="mr-2 accent-yellow-500"
+              />
+              Castigo Divino
+            </label>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.feliz_navidad}
+                onChange={(e) => setFormData({ ...formData, feliz_navidad: e.target.checked })}
+                className="mr-2 accent-yellow-500"
+              />
+              Feliz Navidad
+            </label>
           </div>
         </div>
 
