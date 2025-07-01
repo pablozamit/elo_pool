@@ -24,7 +24,7 @@ import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
 import AdminDebugPanel from './components/AdminDebugPanel';
-import { analyzeErrorWithGemini } from './utils/gemini';
+import { analyzeErrorWithGemini } from './utils/gemini.js';
 
 const ELO_WEIGHTS = {
   rey_mesa: 1.0,
