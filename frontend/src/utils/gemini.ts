@@ -42,5 +42,8 @@ export async function analyzeErrorWithGemini(error: any): Promise<string> {
     throw new Error('No se pudo generar la sugerencia con Gemini');
   }
   console.log('[Gemini] Suggestion ready');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('gemini-suggestion', { detail: { error, suggestion } }));
+  }
   return suggestion;
 }
