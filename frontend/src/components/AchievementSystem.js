@@ -11,7 +11,7 @@ import {
 // Componente principal del sistema de logros
 const AchievementSystem = ({ currentUser }) => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('my-badges');
+  const [activeTab, setActiveTab] = useState(currentUser ? 'my-badges' : 'all-badges');
   const [userAchievements, setUserAchievements] = useState(null);
   const [allBadges, setAllBadges] = useState([]);
   const [progress, setProgress] = useState([]);
@@ -20,18 +20,19 @@ const AchievementSystem = ({ currentUser }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentUser) {
-      fetchAchievementData();
-    }
+    setActiveTab(currentUser ? 'my-badges' : 'all-badges');
+    fetchAchievementData();
   }, [currentUser]);
 
   const fetchAchievementData = async () => {
     setLoading(true);
     try {
-      const [achievements, badges] = await Promise.all([
-        fetchUserBadges(currentUser.id),
-        fetchBadges(),
-      ]);
+      const badgesPromise = fetchBadges();
+      let achievements = null;
+      if (currentUser) {
+        achievements = await fetchUserBadges(currentUser.id);
+      }
+      const badges = await badgesPromise;
 
       setUserAchievements(achievements);
       setAllBadges(badges);
@@ -45,6 +46,7 @@ const AchievementSystem = ({ currentUser }) => {
   };
 
   const checkForNewAchievements = async () => {
+    if (!currentUser) return;
     try {
       const data = await checkAchievementsAPI(currentUser.id);
       if (data.new_badges.length > 0) {
@@ -107,26 +109,30 @@ const AchievementSystem = ({ currentUser }) => {
       
       {/* Navegación por pestañas */}
       <div className="flex flex-wrap gap-2 mb-6 border-b">
-        <TabButton 
-          active={activeTab === 'my-badges'} 
-          onClick={() => setActiveTab('my-badges')}
-          icon="🏆"
-          label="Mis Logros"
-        />
-        <TabButton 
-          active={activeTab === 'progress'} 
-          onClick={() => setActiveTab('progress')}
-          icon="📊"
-          label="Progreso"
-        />
-        <TabButton 
-          active={activeTab === 'all-badges'} 
+        {currentUser && (
+          <>
+            <TabButton
+              active={activeTab === 'my-badges'}
+              onClick={() => setActiveTab('my-badges')}
+              icon="🏆"
+              label="Mis Logros"
+            />
+            <TabButton
+              active={activeTab === 'progress'}
+              onClick={() => setActiveTab('progress')}
+              icon="📊"
+              label="Progreso"
+            />
+          </>
+        )}
+        <TabButton
+          active={activeTab === 'all-badges'}
           onClick={() => setActiveTab('all-badges')}
           icon="🎯"
           label="Todos los Logros"
         />
-        <TabButton 
-          active={activeTab === 'leaderboard'} 
+        <TabButton
+          active={activeTab === 'leaderboard'}
           onClick={() => setActiveTab('leaderboard')}
           icon="👑"
           label="Ranking"
@@ -135,14 +141,14 @@ const AchievementSystem = ({ currentUser }) => {
 
       {/* Contenido de las pestañas */}
       <div className="tab-content">
-        {activeTab === 'my-badges' && (
-          <MyBadgesTab 
-            userAchievements={userAchievements} 
+        {currentUser && activeTab === 'my-badges' && (
+          <MyBadgesTab
+            userAchievements={userAchievements}
             recommendations={recommendations}
             onCheckAchievements={checkForNewAchievements}
           />
         )}
-        {activeTab === 'progress' && (
+        {currentUser && activeTab === 'progress' && (
           <ProgressTab progress={progress} />
         )}
         {activeTab === 'all-badges' && (
