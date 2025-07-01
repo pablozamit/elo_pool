@@ -31,6 +31,13 @@ const ELO_WEIGHTS = {
   liga_finales: 2.5,
 };
 
+const findUserByUsername = (list, username) => {
+  if (!Array.isArray(list) || !username) return undefined;
+  return list.find(
+    (u) => u.username && u.username.toLowerCase() === username.toLowerCase()
+  );
+};
+
 const calculateEloChange = (winnerElo, loserElo, matchType) => {
   console.group('Calculo ELO');
   console.log('Entradas:', { winnerElo, loserElo, matchType });
@@ -61,37 +68,56 @@ const useEloPreview = (formData, rankings, user, opponentParam) => {
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
-    if (
-      !user ||
-      !formData.opponent_username ||
-      !rankings.length ||
-      !formData.result ||
-      formData.result.trim() === ''
-    ) {
+    console.group('ELO Preview');
+    if (!user) {
+      console.log('Usuario no definido');
       setPreview(null);
+      console.groupEnd();
+      return;
+    }
+    if (!formData.opponent_username) {
+      console.log('Nombre de oponente vacío');
+      setPreview(null);
+      console.groupEnd();
+      return;
+    }
+    if (!rankings.length) {
+      console.log('Rankings no disponibles');
+      setPreview(null);
+      console.groupEnd();
+      return;
+    }
+    if (!formData.result || formData.result.trim() === '') {
+      console.log('Resultado no ingresado');
+      setPreview(null);
+      console.groupEnd();
       return;
     }
 
     const player1 = user;
     const player2 =
-      rankings.find(
-        (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
-      ) ||
-      opponentParam;
+      findUserByUsername(rankings, formData.opponent_username) || opponentParam;
 
-    if (
-      !player1 ||
-      !player2 ||
-      isNaN(player1.elo_rating) ||
-      isNaN(player2.elo_rating)
-    ) {
+    if (!player2) {
+      console.log('No se encontró el usuario rival:', formData.opponent_username);
       setPreview(null);
+      console.groupEnd();
+      return;
+    }
+    if (isNaN(player1.elo_rating) || isNaN(player2.elo_rating)) {
+      console.log('ELO inválido en alguno de los jugadores');
+      setPreview(null);
+      console.groupEnd();
       return;
     }
 
-    const [score1, score2] = formData.result.split('-').map((x) => parseInt(x));
+    const [score1, score2] = formData.result
+      .split('-')
+      .map((x) => parseInt(x, 10));
     if (isNaN(score1) || isNaN(score2)) {
+      console.log('Formato inválido en result:', formData.result);
       setPreview(null);
+      console.groupEnd();
       return;
     }
 
@@ -116,6 +142,7 @@ const useEloPreview = (formData, rankings, user, opponentParam) => {
         delta: eloB - player2.elo_rating,
       },
     });
+    console.groupEnd();
   }, [user, rankings, formData, opponentParam]);
 
   return preview;
@@ -1252,12 +1279,8 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     loadPlayers();
   }, []);
   const typedOpponent =
-    allPlayers.find(
-      (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
-    ) ||
-    rankings.find(
-      (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
-    );
+    findUserByUsername(allPlayers, formData.opponent_username) ||
+    findUserByUsername(rankings, formData.opponent_username);
   const opponent = selectedOpponent || typedOpponent;
   const formDataForPreview = {
     ...formData,
