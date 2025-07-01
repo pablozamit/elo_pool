@@ -66,19 +66,28 @@ const simulateEloChange = (playerA, playerB, didAWin, matchType) => {
   };
 };
 
-const useEloPreview = ({ opponentUsername, score1, score2, matchType }) => {
+const useEloPreview = ({ currentUsername, opponentUsername, score1, score2, matchType }) => {
   const { user } = useAuth();
   const [eloPreview, setEloPreview] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       console.group('ELO Preview');
-      if (!user) {
+      const username = currentUsername || user?.username;
+      if (!username) {
         console.log('Usuario no definido');
         setEloPreview(null);
         console.groupEnd();
         return;
       }
+
+      console.log('Entradas:', {
+        username,
+        opponentUsername,
+        score1,
+        score2,
+        matchType,
+      });
 
       if (!opponentUsername) {
         console.log('Nombre de oponente vacío');
@@ -161,7 +170,7 @@ const useEloPreview = ({ opponentUsername, score1, score2, matchType }) => {
     };
 
     fetchData();
-  }, [user, opponentUsername, score1, score2, matchType]);
+  }, [user, currentUsername, opponentUsername, score1, score2, matchType]);
 
   return eloPreview;
 };
@@ -1404,9 +1413,21 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const typedOpponent =
     findUserByUsername(allPlayers, formData.opponent_username) ||
     findUserByUsername(rankings, formData.opponent_username);
+  console.log('Rival ingresado:', formData.opponent_username, typedOpponent);
   const opponent = selectedOpponent || typedOpponent;
 
+  const canCalculatePreview =
+    user &&
+    opponent &&
+    !isNaN(user.elo_rating) &&
+    !isNaN(opponent.elo_rating) &&
+    formData.my_score !== '' &&
+    formData.opponent_score !== '' &&
+    formData.match_type;
+  console.log('Puede calcular preview:', canCalculatePreview);
+
   const eloPreview = useEloPreview({
+    currentUsername: user?.username,
     opponentUsername: opponent?.username || formData.opponent_username,
     score1: parseInt(formData.my_score, 10),
     score2: parseInt(formData.opponent_score, 10),
@@ -1711,12 +1732,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           </ul>
         </div>
       )}
-      {!eloPreview &&
-        user &&
-        formData.opponent_username &&
-        formData.my_score !== '' &&
-        formData.opponent_score !== '' &&
-        formData.match_type && (
+      {!eloPreview && canCalculatePreview && (
           <div className="mt-8 text-yellow-400 text-sm">
             ⚠️ No se pudo calcular el cambio de ELO.
           </div>
