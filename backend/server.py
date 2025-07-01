@@ -123,6 +123,13 @@ class MatchResponse(BaseModel):
     created_at: datetime
     confirmed_at: Optional[datetime]
 
+class DebugPayload(BaseModel):
+    message: str
+    source: Optional[str] = None
+    lineno: Optional[int] = None
+    colno: Optional[int] = None
+    stack: Optional[str] = None
+
 # Utility functions
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -187,6 +194,12 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
     new_loser_elo = loser_elo + K * (0 - expected_loser)
     
     return new_winner_elo, new_loser_elo
+
+# Endpoint to receive frontend error logs
+@api_router.post("/gemini-debug")
+async def gemini_debug(payload: DebugPayload):
+    logger.error("Frontend error: %s", json.dumps(payload.dict()))
+    return {"status": "ok"}
 
 # Routes
 @api_router.post("/register", response_model=UserResponse)
