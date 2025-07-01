@@ -73,9 +73,11 @@ const useEloPreview = (formData, rankings, user, opponentParam) => {
     }
 
     const player1 = user;
-    const player2 = rankings.find(
-      (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
-    );
+    const player2 =
+      rankings.find(
+        (p) => p.username.toLowerCase() === formData.opponent_username.toLowerCase()
+      ) ||
+      opponentParam;
 
     if (
       !player1 ||
@@ -114,7 +116,7 @@ const useEloPreview = (formData, rankings, user, opponentParam) => {
         delta: eloB - player2.elo_rating,
       },
     });
-  }, [user, rankings, formData]);
+  }, [user, rankings, formData, opponentParam]);
 
   return preview;
 };
