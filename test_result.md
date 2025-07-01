@@ -270,7 +270,7 @@ frontend:
 
   - task: "ELO Preview Simulation"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "medium"
@@ -282,6 +282,9 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Fixed preview showing NaN when user info unavailable and integrated useEloPreview hook"
+      - working: true
+        agent: "main"
+        comment: "Parsed numeric fields and validated scores to fix ELO preview"
 
   - task: "Mobile Responsive Design"
     implemented: true
@@ -338,3 +341,5 @@ agent_communication:
     message: "Fixed achievements tab crash by ensuring fetchUserBadges returns an object with default stats. Ready for retesting of Achievements System."
   - agent: "main"
     message: "Added ELO preview simulation hook in frontend for match submission form."
+  - agent: "main"
+    message: "Parsed numeric fields and improved validation in ELO preview calculation."

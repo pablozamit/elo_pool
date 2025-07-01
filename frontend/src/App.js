@@ -104,7 +104,14 @@ const useEloPreview = ({ opponentUsername, score1, score2, matchType }) => {
         return;
       }
 
-      if (score1 === '' || score2 === '' || score1 === undefined || score2 === undefined) {
+      if (
+        score1 === '' ||
+        score2 === '' ||
+        score1 === undefined ||
+        score2 === undefined ||
+        isNaN(score1) ||
+        isNaN(score2)
+      ) {
         console.log('Scores no ingresados');
         setEloPreview(null);
         console.groupEnd();
@@ -1260,12 +1267,12 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   const [formData, setFormData] = useState({
     opponent_username: '',
     match_type: 'rey_mesa',
-    my_score: '0',
-    opponent_score: '0',
+    my_score: '',
+    opponent_score: '',
     break_and_run: false,
     cleanup: false,
     castigo_divino: false,
-    feliz_navidad: false
+    feliz_navidad: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1355,12 +1362,12 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       setFormData({
         opponent_username: '',
         match_type: 'rey_mesa',
-        my_score: '0',
-        opponent_score: '0',
+        my_score: '',
+        opponent_score: '',
         break_and_run: false,
         cleanup: false,
         castigo_divino: false,
-        feliz_navidad: false
+        feliz_navidad: false,
       });
       onMatchSubmitted();
     } catch (error) {
