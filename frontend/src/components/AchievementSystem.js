@@ -6,8 +6,6 @@ import {
   checkAchievements as checkAchievementsAPI,
 } from '../api/airtable';
 
-
-
 // Componente principal del sistema de logros
 const AchievementSystem = ({ currentUser }) => {
   const { t } = useTranslation();
@@ -97,7 +95,7 @@ const AchievementSystem = ({ currentUser }) => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
@@ -108,20 +106,20 @@ const AchievementSystem = ({ currentUser }) => {
       <AchievementHeader userAchievements={userAchievements} />
       
       {/* Navegación por pestañas */}
-      <div className="flex flex-wrap gap-2 mb-6 border-b">
+      <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-600">
         {currentUser && (
           <>
             <TabButton
               active={activeTab === 'my-badges'}
               onClick={() => setActiveTab('my-badges')}
               icon="🏆"
-              label="Mis Logros"
+              label={t('myAchievements')}
             />
             <TabButton
               active={activeTab === 'progress'}
               onClick={() => setActiveTab('progress')}
               icon="📊"
-              label="Progreso"
+              label={t('progress')}
             />
           </>
         )}
@@ -129,13 +127,13 @@ const AchievementSystem = ({ currentUser }) => {
           active={activeTab === 'all-badges'}
           onClick={() => setActiveTab('all-badges')}
           icon="🎯"
-          label="Todos los Logros"
+          label={t('allBadges')}
         />
         <TabButton
           active={activeTab === 'leaderboard'}
           onClick={() => setActiveTab('leaderboard')}
           icon="👑"
-          label="Ranking"
+          label={t('leaderboard')}
         />
       </div>
 
@@ -164,6 +162,8 @@ const AchievementSystem = ({ currentUser }) => {
 
 // Componente del header con estadísticas
 const AchievementHeader = ({ userAchievements }) => {
+  const { t } = useTranslation();
+  
   if (!userAchievements) return null;
 
   const levelProgress = userAchievements.next_level_exp > 0 
@@ -171,32 +171,32 @@ const AchievementHeader = ({ userAchievements }) => {
     : 100;
 
   return (
-    <div className="achievement-header bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 rounded-lg mb-6">
+    <div className="premium-card p-6 mb-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="text-center">
-          <div className="text-3xl font-bold">{userAchievements.level}</div>
-          <div className="text-sm opacity-80">Nivel</div>
-          <div className="w-full bg-white bg-opacity-20 rounded-full h-2 mt-2">
+          <div className="text-3xl font-bold text-primary-gold">{userAchievements.level}</div>
+          <div className="text-sm text-text-secondary">{t('level')}</div>
+          <div className="w-full bg-gray-600 rounded-full h-2 mt-2">
             <div 
-              className="bg-white h-2 rounded-full transition-all duration-300"
+              className="bg-primary-gold h-2 rounded-full transition-all duration-300"
               style={{ width: `${levelProgress}%` }}
             ></div>
           </div>
         </div>
         
         <div className="text-center">
-          <div className="text-3xl font-bold">{userAchievements.badges.length}</div>
-          <div className="text-sm opacity-80">Logros Obtenidos</div>
+          <div className="text-3xl font-bold text-primary-gold">{userAchievements.badges.length}</div>
+          <div className="text-sm text-text-secondary">{t('earnedBadges')}</div>
         </div>
         
         <div className="text-center">
-          <div className="text-3xl font-bold">{userAchievements.total_points.toLocaleString()}</div>
-          <div className="text-sm opacity-80">Puntos Totales</div>
+          <div className="text-3xl font-bold text-primary-gold">{userAchievements.total_points.toLocaleString()}</div>
+          <div className="text-sm text-text-secondary">{t('totalPoints')}</div>
         </div>
         
         <div className="text-center">
-          <div className="text-2xl font-bold">{getUserTitle(userAchievements.level)}</div>
-          <div className="text-sm opacity-80">Título Actual</div>
+          <div className="text-2xl font-bold text-primary-gold">{getUserTitle(userAchievements.level)}</div>
+          <div className="text-sm text-text-secondary">{t('currentTitle')}</div>
         </div>
       </div>
     </div>
@@ -209,8 +209,8 @@ const TabButton = ({ active, onClick, icon, label }) => (
     onClick={onClick}
     className={`flex items-center space-x-2 px-4 py-2 rounded-t-lg transition-colors ${
       active 
-        ? 'bg-white border-b-2 border-blue-500 text-blue-600' 
-        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+        ? 'bg-primary-gold text-dark-bg border-b-2 border-primary-gold' 
+        : 'bg-card-bg text-text-secondary hover:bg-gray-700 border-b-2 border-transparent'
     }`}
   >
     <span>{icon}</span>
@@ -220,6 +220,7 @@ const TabButton = ({ active, onClick, icon, label }) => (
 
 // Pestaña de mis logros
 const MyBadgesTab = ({ userAchievements, recommendations, onCheckAchievements }) => {
+  const { t } = useTranslation();
   const earnedBadges = userAchievements?.badges || [];
   
   return (
@@ -228,17 +229,17 @@ const MyBadgesTab = ({ userAchievements, recommendations, onCheckAchievements })
       <div className="text-center">
         <button
           onClick={onCheckAchievements}
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+          className="btn-premium"
         >
-          🔍 Verificar Nuevos Logros
+          🔍 {t('checkAchievements')}
         </button>
       </div>
 
       {/* Recomendaciones */}
       {recommendations.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-yellow-800 mb-3">
-            🎯 Logros Cercanos a Completar
+        <div className="premium-card p-4">
+          <h3 className="text-lg font-semibold text-primary-gold mb-3">
+            🎯 {t('nearCompletion')}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {recommendations.map((rec) => (
@@ -250,14 +251,14 @@ const MyBadgesTab = ({ userAchievements, recommendations, onCheckAchievements })
 
       {/* Logros obtenidos */}
       <div>
-        <h3 className="text-xl font-semibold mb-4">
-          🏆 Logros Obtenidos ({earnedBadges.length})
+        <h3 className="text-xl font-semibold text-primary-gold mb-4">
+          🏆 {t('earnedBadges')} ({earnedBadges.length})
         </h3>
         {earnedBadges.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-text-secondary py-8">
             <div className="text-6xl mb-4">🎱</div>
-            <p>¡Aún no tienes logros!</p>
-            <p className="text-sm">Juega algunos partidos para empezar a desbloquear badges.</p>
+            <p>{t('noAchievementsYet')}</p>
+            <p className="text-sm">{t('playToUnlock')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -273,14 +274,15 @@ const MyBadgesTab = ({ userAchievements, recommendations, onCheckAchievements })
 
 // Pestaña de progreso
 const ProgressTab = ({ progress }) => {
+  const { t } = useTranslation();
   const sortedProgress = progress.sort((a, b) => b.progress - a.progress);
   
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold">📊 Progreso hacia Logros</h3>
+      <h3 className="text-xl font-semibold text-primary-gold">📊 {t('progress')}</h3>
       
       {sortedProgress.length === 0 ? (
-        <div className="text-center text-gray-500 py-8">
+        <div className="text-center text-text-secondary py-8">
           <p>No hay progreso que mostrar en este momento.</p>
         </div>
       ) : (
@@ -296,6 +298,7 @@ const ProgressTab = ({ progress }) => {
 
 // Pestaña de todos los logros
 const AllBadgesTab = ({ badges, userBadges }) => {
+  const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRarity, setSelectedRarity] = useState('all');
   
@@ -315,13 +318,13 @@ const AllBadgesTab = ({ badges, userBadges }) => {
       {/* Filtros */}
       <div className="flex flex-wrap gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">{t('category')}</label>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2"
+            className="form-input"
           >
-            <option value="all">Todas</option>
+            <option value="all">{t('allCategories')}</option>
             {categories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -329,15 +332,15 @@ const AllBadgesTab = ({ badges, userBadges }) => {
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Rareza</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">{t('rarity')}</label>
           <select
             value={selectedRarity}
             onChange={(e) => setSelectedRarity(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2"
+            className="form-input"
           >
-            <option value="all">Todas</option>
+            <option value="all">{t('allRarities')}</option>
             {rarities.map(rarity => (
-              <option key={rarity} value={rarity}>{rarity}</option>
+              <option key={rarity} value={rarity}>{t(rarity)}</option>
             ))}
           </select>
         </div>
@@ -359,60 +362,52 @@ const AllBadgesTab = ({ badges, userBadges }) => {
 
 // Pestaña de ranking
 const LeaderboardTab = ({ leaderboard, currentUser }) => {
+  const { t } = useTranslation();
+  
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold">👑 Ranking de Logros</h3>
+      <h3 className="text-xl font-semibold text-primary-gold">👑 {t('achievementRanking')}</h3>
       
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="premium-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+          <table className="premium-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Posición
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Jugador
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Nivel
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Puntos
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Logros
-                </th>
+                <th>{t('position')}</th>
+                <th>{t('player')}</th>
+                <th>{t('level')}</th>
+                <th>{t('points')}</th>
+                <th>{t('badges')}</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {leaderboard.map((player) => (
                 <tr 
                   key={player.username}
-                  className={`${player.username === currentUser?.username ? 'bg-blue-50' : ''} hover:bg-gray-50`}
+                  className={player.username === currentUser?.username ? 'bg-primary-gold bg-opacity-10' : ''}
                 >
-                  <td className="px-4 py-4 whitespace-nowrap">
+                  <td>
                     <div className="flex items-center">
                       <RankBadge rank={player.rank} />
                       <span className="ml-2 font-medium">#{player.rank}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
+                  <td>
                     <div>
-                      <div className="font-medium text-gray-900">{player.username}</div>
-                      <div className="text-sm text-gray-500">{player.title}</div>
+                      <div className="font-medium text-text-primary">{player.username}</div>
+                      <div className="text-sm text-text-secondary">{player.title}</div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="text-lg font-bold text-purple-600">{player.level}</span>
+                  <td>
+                    <span className="text-lg font-bold text-primary-gold">{player.level}</span>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="text-lg font-bold text-green-600">
+                  <td>
+                    <span className="text-lg font-bold text-success">
                       {player.total_points.toLocaleString()}
                     </span>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="text-lg font-bold text-blue-600">{player.badge_count}</span>
+                  <td>
+                    <span className="text-lg font-bold text-primary-gold">{player.badge_count}</span>
                   </td>
                 </tr>
               ))}
@@ -425,93 +420,105 @@ const LeaderboardTab = ({ leaderboard, currentUser }) => {
 };
 
 // Componentes auxiliares
-const RecommendationCard = ({ recommendation }) => (
-  <div className="bg-white border border-yellow-300 rounded-lg p-4">
-    <div className="flex items-start space-x-3">
-      <span className="text-2xl">{recommendation.badge.icon}</span>
-      <div className="flex-1">
-        <h4 className="font-medium text-gray-900">{recommendation.badge.name}</h4>
-        <p className="text-sm text-gray-600 mb-2">{recommendation.badge.description}</p>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${recommendation.progress}%` }}
-          ></div>
-        </div>
-        <div className="text-xs text-gray-500 mt-1">
-          {Math.round(recommendation.progress)}% completado
+const RecommendationCard = ({ recommendation }) => {
+  const { t } = useTranslation();
+  
+  return (
+    <div className="premium-card p-4">
+      <div className="flex items-start space-x-3">
+        <span className="text-2xl">{recommendation.badge.icon}</span>
+        <div className="flex-1">
+          <h4 className="font-medium text-text-primary">{recommendation.badge.name}</h4>
+          <p className="text-sm text-text-secondary mb-2">{recommendation.badge.description}</p>
+          <div className="w-full bg-gray-600 rounded-full h-2">
+            <div 
+              className="bg-primary-gold h-2 rounded-full transition-all duration-300"
+              style={{ width: `${recommendation.progress}%` }}
+            ></div>
+          </div>
+          <div className="text-xs text-text-muted mt-1">
+            {Math.round(recommendation.progress)}% {t('completedProgress')}
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const EarnedBadgeCard = ({ userBadge }) => {
-  // Aquí necesitarías obtener los datos del badge desde el catálogo
-  // Por simplicidad, asumo que tienes acceso a los datos del badge
+  const { t } = useTranslation();
+  
   return (
-    <div className="bg-white border-2 border-green-200 rounded-lg p-4 shadow-sm">
+    <div className="premium-card p-4 border-2 border-success">
       <div className="text-center">
-        <div className="text-3xl mb-2">🏆</div> {/* Placeholder icon */}
-        <h4 className="font-medium text-gray-900">{userBadge.badge_id}</h4>
-        <p className="text-xs text-gray-500 mt-2">
-          Obtenido: {new Date(userBadge.earned_at).toLocaleDateString()}
+        <div className="text-3xl mb-2">🏆</div>
+        <h4 className="font-medium text-text-primary">{userBadge.badge_id}</h4>
+        <p className="text-xs text-text-secondary mt-2">
+          {t('obtainedOn')} {new Date(userBadge.earned_at).toLocaleDateString()}
         </p>
       </div>
     </div>
   );
 };
 
-const ProgressCard = ({ item }) => (
-  <div className="bg-white border rounded-lg p-4">
-    <div className="flex items-center space-x-3">
-      <span className="text-2xl">{item.badge.icon}</span>
-      <div className="flex-1">
-        <div className="flex justify-between items-start mb-2">
-          <h4 className="font-medium text-gray-900">{item.badge.name}</h4>
-          <span className="text-sm font-medium text-gray-600">
-            {Math.round(item.progress)}%
-          </span>
-        </div>
-        <p className="text-sm text-gray-600 mb-2">{item.badge.description}</p>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="h-2 rounded-full transition-all duration-300"
-            style={{ 
-              width: `${item.progress}%`,
-              backgroundColor: item.color 
-            }}
-          ></div>
+const ProgressCard = ({ item }) => {
+  const { t } = useTranslation();
+  
+  return (
+    <div className="premium-card p-4">
+      <div className="flex items-center space-x-3">
+        <span className="text-2xl">{item.badge.icon}</span>
+        <div className="flex-1">
+          <div className="flex justify-between items-start mb-2">
+            <h4 className="font-medium text-text-primary">{item.badge.name}</h4>
+            <span className="text-sm font-medium text-text-secondary">
+              {Math.round(item.progress)}%
+            </span>
+          </div>
+          <p className="text-sm text-text-secondary mb-2">{item.badge.description}</p>
+          <div className="w-full bg-gray-600 rounded-full h-2">
+            <div 
+              className="h-2 rounded-full transition-all duration-300"
+              style={{ 
+                width: `${item.progress}%`,
+                backgroundColor: item.color 
+              }}
+            ></div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const BadgeCard = ({ badge, earned }) => (
-  <div className={`border rounded-lg p-4 ${earned ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-    <div className="text-center">
-      <div className="text-3xl mb-2">{badge.icon}</div>
-      <h4 className={`font-medium ${earned ? 'text-green-900' : 'text-gray-500'}`}>
-        {badge.name}
-      </h4>
-      <p className={`text-sm mt-1 ${earned ? 'text-green-700' : 'text-gray-400'}`}>
-        {badge.description}
-      </p>
-      <div className="mt-2 flex justify-center items-center space-x-2">
-        <RarityBadge rarity={badge.rarity} />
-        <span className="text-xs text-gray-500">+{badge.points} pts</span>
-      </div>
-      {earned && (
-        <div className="mt-2">
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            ✓ Obtenido
-          </span>
+const BadgeCard = ({ badge, earned }) => {
+  const { t } = useTranslation();
+  
+  return (
+    <div className={`premium-card p-4 ${earned ? 'border-2 border-success' : 'opacity-60'}`}>
+      <div className="text-center">
+        <div className="text-3xl mb-2">🏆</div>
+        <h4 className={`font-medium ${earned ? 'text-text-primary' : 'text-text-muted'}`}>
+          {badge.name}
+        </h4>
+        <p className={`text-sm mt-1 ${earned ? 'text-text-secondary' : 'text-text-muted'}`}>
+          {badge.description}
+        </p>
+        <div className="mt-2 flex justify-center items-center space-x-2">
+          <RarityBadge rarity={badge.rarity} />
+          <span className="text-xs text-text-muted">+{badge.points} pts</span>
         </div>
-      )}
+        {earned && (
+          <div className="mt-2">
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-success text-dark-bg">
+              ✓ {t('obtained')}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const RankBadge = ({ rank }) => {
   const getColor = () => {
@@ -532,18 +539,20 @@ const RankBadge = ({ rank }) => {
 };
 
 const RarityBadge = ({ rarity }) => {
+  const { t } = useTranslation();
+  
   const colors = {
-    common: 'bg-gray-100 text-gray-800',
-    uncommon: 'bg-green-100 text-green-800',
-    rare: 'bg-blue-100 text-blue-800',
-    epic: 'bg-purple-100 text-purple-800',
-    legendary: 'bg-yellow-100 text-yellow-800',
-    mythic: 'bg-red-100 text-red-800'
+    common: 'bg-gray-600 text-gray-200',
+    uncommon: 'bg-green-600 text-green-200',
+    rare: 'bg-blue-600 text-blue-200',
+    epic: 'bg-purple-600 text-purple-200',
+    legendary: 'bg-yellow-600 text-yellow-200',
+    mythic: 'bg-red-600 text-red-200'
   };
 
   return (
     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${colors[rarity] || colors.common}`}>
-      {rarity}
+      {t(rarity)}
     </span>
   );
 };
