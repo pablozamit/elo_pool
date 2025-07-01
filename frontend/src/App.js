@@ -64,88 +64,97 @@ const simulateEloChange = (playerA, playerB, didAWin, matchType) => {
   };
 };
 
-const useEloPreview = (formData, rankings, user, opponentParam) => {
-  const [preview, setPreview] = useState(null);
+const useEloPreview = ({ opponentUsername, score1, score2, matchType }) => {
+  const { user } = useAuth();
+  const [eloPreview, setEloPreview] = useState(null);
 
   useEffect(() => {
-    console.group('ELO Preview');
-    if (!user) {
-      console.log('Usuario no definido');
-      setPreview(null);
-      console.groupEnd();
-      return;
-    }
-    if (!formData.opponent_username) {
-      console.log('Nombre de oponente vacío');
-      setPreview(null);
-      console.groupEnd();
-      return;
-    }
-    if (!rankings.length) {
-      console.log('Rankings no disponibles');
-      setPreview(null);
-      console.groupEnd();
-      return;
-    }
-    if (!formData.result || formData.result.trim() === '') {
-      console.log('Resultado no ingresado');
-      setPreview(null);
-      console.groupEnd();
-      return;
-    }
+    const fetchData = async () => {
+      console.group('ELO Preview');
+      if (!user) {
+        console.log('Usuario no definido');
+        setEloPreview(null);
+        console.groupEnd();
+        return;
+      }
 
-    const player1 = user;
-    const player2 =
-      findUserByUsername(rankings, formData.opponent_username) || opponentParam;
+      if (!opponentUsername) {
+        console.log('Nombre de oponente vacío');
+        setEloPreview(null);
+        console.groupEnd();
+        return;
+      }
 
-    if (!player2) {
-      console.log('No se encontró el usuario rival:', formData.opponent_username);
-      setPreview(null);
+      const allUsers = await listRecords('Users');
+      const opponent = allUsers.find(
+        (u) => u.username.toLowerCase() === opponentUsername.toLowerCase()
+      );
+
+      if (!opponent) {
+        console.log('No se encontró el usuario rival:', opponentUsername);
+        setEloPreview(null);
+        console.groupEnd();
+        return;
+      }
+
+      if (isNaN(user.elo_rating) || isNaN(opponent.elo_rating)) {
+        console.log('ELO inválido en alguno de los jugadores');
+        setEloPreview(null);
+        console.groupEnd();
+        return;
+      }
+
+      if (score1 === '' || score2 === '' || score1 === undefined || score2 === undefined) {
+        console.log('Scores no ingresados');
+        setEloPreview(null);
+        console.groupEnd();
+        return;
+      }
+
+      const userElo = user.elo_rating;
+      const opponentElo = opponent.elo_rating;
+      const matchWeight =
+        matchType === 'liga_finales'
+          ? 2.5
+          : matchType === 'liga_grupos'
+          ? 2.0
+          : matchType === 'torneo'
+          ? 1.5
+          : 1.0;
+
+      const expectedUser = 1 / (1 + Math.pow(10, (opponentElo - userElo) / 400));
+      const expectedOpponent = 1 - expectedUser;
+
+      const outcomeUser = score1 > score2 ? 1 : 0;
+      const outcomeOpponent = 1 - outcomeUser;
+
+      const k = 32 * matchWeight;
+
+      const userDelta = Math.round(k * (outcomeUser - expectedUser));
+      const opponentDelta = -userDelta;
+
+      setEloPreview({
+        user: {
+          from: userElo,
+          to: userElo + userDelta,
+          delta: userDelta,
+        },
+        opponent: {
+          username: opponent.username,
+          from: opponentElo,
+          to: opponentElo + opponentDelta,
+          delta: opponentDelta,
+        },
+      });
+
+      console.log('ELO Preview generado correctamente');
       console.groupEnd();
-      return;
-    }
-    if (isNaN(player1.elo_rating) || isNaN(player2.elo_rating)) {
-      console.log('ELO inválido en alguno de los jugadores');
-      setPreview(null);
-      console.groupEnd();
-      return;
-    }
+    };
 
-    const [score1, score2] = formData.result
-      .split('-')
-      .map((x) => parseInt(x, 10));
-    if (isNaN(score1) || isNaN(score2)) {
-      console.log('Formato inválido en result:', formData.result);
-      setPreview(null);
-      console.groupEnd();
-      return;
-    }
+    fetchData();
+  }, [user, opponentUsername, score1, score2, matchType]);
 
-    const didPlayer1Win = score1 > score2;
-
-    const { eloA, eloB } = simulateEloChange(
-      player1,
-      player2,
-      didPlayer1Win,
-      formData.match_type
-    );
-
-    setPreview({
-      [player1.username]: {
-        current: player1.elo_rating,
-        next: eloA,
-        delta: eloA - player1.elo_rating,
-      },
-      [player2.username]: {
-        current: player2.elo_rating,
-        next: eloB,
-        delta: eloB - player2.elo_rating,
-      },
-    });
-    console.groupEnd();
-  }, [user, rankings, formData, opponentParam]);
-
-  return preview;
+  return eloPreview;
 };
 
 // Base Airtable interaction is handled via api/airtable.js
@@ -1282,11 +1291,13 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     findUserByUsername(allPlayers, formData.opponent_username) ||
     findUserByUsername(rankings, formData.opponent_username);
   const opponent = selectedOpponent || typedOpponent;
-  const formDataForPreview = {
-    ...formData,
-    result: `${formData.my_score}-${formData.opponent_score}`,
-  };
-  const eloPreview = useEloPreview(formDataForPreview, rankings, user, opponent);
+
+  const eloPreview = useEloPreview({
+    opponentUsername: opponent?.username || formData.opponent_username,
+    score1: parseInt(formData.my_score, 10),
+    score2: parseInt(formData.opponent_score, 10),
+    matchType: formData.match_type,
+  });
 
   const matchTypes = {
     rey_mesa: 'Rey de la Mesa',
@@ -1558,14 +1569,14 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           <p className="mb-2 font-semibold">🔍 Previsualización del cambio de ELO:</p>
           <ul className="space-y-1">
             <li>
-              <span className="font-bold">{user.username}</span>: {eloPreview[user.username].current} →{' '}
-              <span className="text-green-400">{eloPreview[user.username].next}</span>{' '}
-              ({eloPreview[user.username].delta >= 0 ? '+' : ''}{eloPreview[user.username].delta})
+              <span className="font-bold">{user.username}</span>: {eloPreview.user.from} →{' '}
+              <span className="text-green-400">{eloPreview.user.to}</span>{' '}
+              ({eloPreview.user.delta >= 0 ? '+' : ''}{eloPreview.user.delta})
             </li>
             <li>
-              <span className="font-bold">{opponent?.username || formData.opponent_username}</span>: {eloPreview[opponent?.username || formData.opponent_username].current} →{' '}
-              <span className="text-red-400">{eloPreview[opponent?.username || formData.opponent_username].next}</span>{' '}
-              ({eloPreview[opponent?.username || formData.opponent_username].delta >= 0 ? '+' : ''}{eloPreview[opponent?.username || formData.opponent_username].delta})
+              <span className="font-bold">{eloPreview.opponent.username}</span>: {eloPreview.opponent.from} →{' '}
+              <span className="text-red-400">{eloPreview.opponent.to}</span>{' '}
+              ({eloPreview.opponent.delta >= 0 ? '+' : ''}{eloPreview.opponent.delta})
             </li>
           </ul>
         </div>
