@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
+import { analyzeErrorWithGemini } from './utils/gemini';
 
 const ELO_WEIGHTS = {
   rey_mesa: 1.0,
@@ -196,6 +197,14 @@ const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Error de login:', error.message);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       console.groupEnd();
       return { success: false, error: 'Error de login' };
     }
@@ -211,6 +220,14 @@ const AuthProvider = ({ children }) => {
       return { success: true, message: '¡Registro exitoso! Por favor, inicia sesión.' };
     } catch (error) {
       console.error('Error de registro:', error.message);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       console.groupEnd();
       return { success: false, error: 'Error de registro' };
     }
@@ -451,6 +468,14 @@ const Dashboard = () => {
       console.log('Rankings actualizados, total:', finalRankings.length);
     } catch (error) {
       console.error('Error fetching rankings:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setRankings([]);
     }
     console.groupEnd();
@@ -470,6 +495,14 @@ const Dashboard = () => {
       console.log('Actualizados matches del usuario');
     } catch (error) {
       console.error('Error fetching matches:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setMatches([]);
     }
     console.groupEnd();
@@ -490,6 +523,14 @@ const Dashboard = () => {
       console.log('Pendientes obtenidos:', data.length);
     } catch (error) {
       console.error('Error fetching pending matches:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setPendingMatches([]);
     }
     console.groupEnd();
@@ -511,6 +552,14 @@ const Dashboard = () => {
       }
     } catch (error) {
       console.error('Error checking achievements:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
     }
     console.groupEnd();
   };
@@ -599,6 +648,14 @@ const Dashboard = () => {
       console.log('Partido confirmado correctamente');
     } catch (error) {
       console.error('Error confirming match:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setActionError('Error confirming match');
       alert('Error confirming match');
     }
@@ -617,6 +674,14 @@ const Dashboard = () => {
       console.log('Partido rechazado', matchId);
     } catch (error) {
       console.error('Error rejecting match:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setActionError('Error rejecting match');
       alert('Error rejecting match');
     }
@@ -846,6 +911,14 @@ const AdminTab = () => {
     } catch (error) {
       setError('Error al cargar usuarios');
       console.error('Error fetching users:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
     }
     setLoading(false);
     console.groupEnd();
@@ -887,6 +960,14 @@ const AdminTab = () => {
       fetchUsers();
     } catch (error) {
       console.error('Error creando usuario:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setError(error.response?.data?.detail || 'Error al crear usuario');
     }
     setLoading(false);
@@ -907,6 +988,14 @@ const AdminTab = () => {
       fetchUsers();
     } catch (error) {
       console.error('Error actualizando usuario:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setError(error.response?.data?.detail || 'Error al actualizar usuario');
     }
     setLoading(false);
@@ -930,6 +1019,14 @@ const AdminTab = () => {
       fetchUsers();
     } catch (error) {
       console.error('Error eliminando usuario:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setError(error.response?.data?.detail || 'Error al eliminar usuario');
     }
     setLoading(false);
@@ -1290,6 +1387,14 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         setAllPlayers(users);
       } catch (err) {
         console.error('Error loading players:', err);
+        try {
+          const suggestion = await analyzeErrorWithGemini(err);
+          console.groupCollapsed('[🧠 Gemini Suggestion]');
+          console.log(suggestion);
+          console.groupEnd();
+        } catch {
+          console.warn('[Gemini] No se pudo generar sugerencia automática.');
+        }
       }
     };
     loadPlayers();
@@ -1372,6 +1477,14 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       onMatchSubmitted();
     } catch (error) {
       console.error('Error enviando partido:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
       setError(error.response?.data?.detail || 'Error al enviar resultado');
     }
     setLoading(false);
@@ -1391,6 +1504,14 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
           setOpponentSuggestions(suggestions);
         } catch (err) {
           console.error('Error fetching opponent suggestions:', err);
+          try {
+            const suggestion = await analyzeErrorWithGemini(err);
+            console.groupCollapsed('[🧠 Gemini Suggestion]');
+            console.log(suggestion);
+            console.groupEnd();
+          } catch {
+            console.warn('[Gemini] No se pudo generar sugerencia automática.');
+          }
           setOpponentSuggestions([]);
         } finally {
           setIsSearchingOpponent(false);
