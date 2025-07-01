@@ -99,6 +99,10 @@ const normalizeMatch = (m) => {
     player2_elo_change: m['Player 2 ELO Change'],
     player1_total_matches: m['Player 1 Total Matches'],
     player2_total_matches: m['Player 2 Total Matches'],
+    break_and_run: m['Break & Run'],
+    cleanup: m['Clean-Up'],
+    castigo_divino: m['Castigo Divino'],
+    feliz_navidad: m['Feliz Navidad'],
   };
   if (result.winner_id === result.player1_id) {
     result.winner_username = result.player1_username;
@@ -133,6 +137,10 @@ const matchFieldMap = {
   player2_elo_change: 'Player 2 ELO Change',
   player1_total_matches: 'Player 1 Total Matches',
   player2_total_matches: 'Player 2 Total Matches',
+  break_and_run: 'Break & Run',
+  cleanup: 'Clean-Up',
+  castigo_divino: 'Castigo Divino',
+  feliz_navidad: 'Feliz Navidad',
 };
 
 const denormalizeMatch = (m) => {
