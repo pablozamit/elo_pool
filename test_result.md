@@ -208,11 +208,14 @@ frontend:
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented React app with login/register forms, JWT token management, auth context"
+      - working: "NA"
+        agent: "main"
+        comment: "Added guards to ensure user is definido antes de interactuar con SubmitMatchTab y se registran warnings cuando user es undefined"
 
   - task: "Dashboard and Navigation"
     implemented: true
@@ -310,7 +313,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 0
+  test_sequence: 1
   run_ui: false
 
 test_plan:
