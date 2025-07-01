@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
+import AdminDebugPanel from './components/AdminDebugPanel';
 import { analyzeErrorWithGemini } from './utils/gemini';
 
 const ELO_WEIGHTS = {
@@ -883,6 +884,7 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+      {user?.is_admin && <AdminDebugPanel />}
     </div>
   );
 };
