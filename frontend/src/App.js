@@ -509,34 +509,6 @@ const fetchPendingMatches = async () => {
   console.groupEnd();
 };
 
-  // Fetch user-specific pending matches
-  const fetchPendingMatches = async () => {
-    if (!user) {
-      console.warn('Usuario undefined en fetchPendingMatches');
-      return;
-    }
-    console.group('Fetch Pending Matches');
-    try {
-      const data = user.is_admin
-        ? await fetchAllPendingMatches()
-        : await fetchPendingMatchesForUser(user.username);
-      setPendingMatches(data);
-      console.log('Pendientes obtenidos:', data.length);
-    } catch (error) {
-      console.error('Error fetching pending matches:', error);
-      try {
-        const suggestion = await analyzeErrorWithGemini(error);
-        console.groupCollapsed('[🧠 Gemini Suggestion]');
-        console.log(suggestion);
-        console.groupEnd();
-      } catch {
-        console.warn('[Gemini] No se pudo generar sugerencia automática.');
-      }
-      setPendingMatches([]);
-    }
-    console.groupEnd();
-  };
-
   // Check for new achievements
   const checkAchievements = async () => {
     if (!user) {
