@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  fetchUserBadges,
-  fetchBadges,
-  checkAchievements as checkAchievementsAPI,
-} from '../api/airtable';
+// Importamos solo las funciones necesarias de nuestra API
+import { getMyAchievements } from '../api';
 
 // Componente principal del sistema de logros
 const AchievementSystem = ({ currentUser }) => {
@@ -12,31 +9,24 @@ const AchievementSystem = ({ currentUser }) => {
   const [activeTab, setActiveTab] = useState(currentUser ? 'my-badges' : 'all-badges');
   const [userAchievements, setUserAchievements] = useState(null);
   const [allBadges, setAllBadges] = useState([]);
-  const [progress, setProgress] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setActiveTab(currentUser ? 'my-badges' : 'all-badges');
-    fetchAchievementData();
+    if (currentUser) {
+      fetchAchievementData();
+    } else {
+        setLoading(false);
+    }
   }, [currentUser]);
 
   const fetchAchievementData = async () => {
     setLoading(true);
     try {
-      const badgesPromise = fetchBadges();
-      let achievements = null;
-      if (currentUser) {
-        achievements = await fetchUserBadges(currentUser.id);
-      }
-      const badges = await badgesPromise;
-
-      setUserAchievements(achievements);
-      setAllBadges(badges);
-      setProgress([]);
-      setRecommendations([]);
-      setLeaderboard([]);
+      // La API ahora nos da toda la información de logros del usuario en una sola llamada
+      const achievementsRes = await getMyAchievements(); 
+      setUserAchievements(achievementsRes.data);
     } catch (error) {
       console.error('Error fetching achievement data:', error);
     }
@@ -219,21 +209,13 @@ const TabButton = ({ active, onClick, icon, label }) => (
 );
 
 // Pestaña de mis logros
-const MyBadgesTab = ({ userAchievements, recommendations, onCheckAchievements }) => {
-  const { t } = useTranslation();
-  const earnedBadges = userAchievements?.badges || [];
-  
-  return (
-    <div className="space-y-6">
-      {/* Botón para verificar nuevos logros */}
-      <div className="text-center">
-        <button
-          onClick={onCheckAchievements}
-          className="btn-premium"
-        >
-          🔍 {t('checkAchievements')}
-        </button>
-      </div>
+const MyBadgesTab = ({ userAchievements, recommendations }) => {
+  const { t } = useTranslation();
+  const earnedBadges = userAchievements?.badges || [];
+  
+  return (
+    <div className="space-y-6">
+      {/* El botón para verificar nuevos logros ha sido ELIMINADO */}
 
       {/* Recomendaciones */}
       {recommendations.length > 0 && (
