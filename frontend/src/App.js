@@ -509,7 +509,7 @@ const fetchPendingMatches = async () => {
   console.groupEnd();
 };
 
-  // Check for new achievements
+ // Check for new achievements
   const checkAchievements = async () => {
     if (!user) {
       console.warn('Usuario undefined en checkAchievements');
@@ -517,7 +517,10 @@ const fetchPendingMatches = async () => {
     }
     console.group('Check Achievements');
     try {
-      const data = await checkAchievementsAPI(user.id);
+      // Llama a la nueva función de tu API
+      const response = await getMyAchievements(); 
+      const data = response.data;
+
       console.log('Badges nuevos:', data.new_badges?.length || 0);
       if (data.new_badges && data.new_badges.length > 0) {
         setAchievementNotifications(data.new_badges);
@@ -1323,8 +1326,9 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   useEffect(() => {
     const loadPlayers = async () => {
       try {
-        const users = await listRecords('Users');
-        setAllPlayers(users);
+        // Usamos la función getRankings que ya tenemos para cargar a todos los jugadores
+        const response = await getRankings();
+        setAllPlayers(response.data);
       } catch (err) {
         console.error('Error loading players:', err);
         try {
@@ -1442,43 +1446,17 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   };
 
   useEffect(() => {
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout);
-    }
-
+    // Ya no necesitamos un "debounce" porque la búsqueda es instantánea (local)
     if (formData.opponent_username.length >= 2) {
-      setIsSearchingOpponent(true);
-      const timeoutId = setTimeout(async () => {
-        try {
-          const suggestions = await searchUsers(formData.opponent_username);
-          setOpponentSuggestions(suggestions);
-        } catch (err) {
-          console.error('Error fetching opponent suggestions:', err);
-          try {
-            const suggestion = await analyzeErrorWithGemini(err);
-            console.groupCollapsed('[🧠 Gemini Suggestion]');
-            console.log(suggestion);
-            console.groupEnd();
-          } catch {
-            console.warn('[Gemini] No se pudo generar sugerencia automática.');
-          }
-          setOpponentSuggestions([]);
-        } finally {
-          setIsSearchingOpponent(false);
-        }
-      }, 500);
-      setDebounceTimeout(timeoutId);
+      const suggestions = allPlayers.filter(player => 
+        player.username.toLowerCase().includes(formData.opponent_username.toLowerCase()) &&
+        player.username.toLowerCase() !== user.username.toLowerCase()
+      );
+      setOpponentSuggestions(suggestions);
     } else {
       setOpponentSuggestions([]);
-      setIsSearchingOpponent(false);
     }
-
-    return () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-    };
-  }, [formData.opponent_username]);
+  }, [formData.opponent_username, allPlayers, user.username]);
 
 
 
