@@ -1,7 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, Suspense } from 'react';
 import './App.css';
 import {
-  // Importa las nuevas funciones desde tu cliente de API
   login as apiLogin,
   register as apiRegister,
   getRankings,
@@ -12,13 +11,11 @@ import {
   declineMatch as apiDeclineMatch,
   getMyAchievements,
   getEloPreview,
-  // Para el panel de admin, asumiremos que tienes estas rutas
-  // (puedes añadirlas luego a tu backend y api/index.js)
-  // adminGetAllUsers, 
-  // adminUpdateUser,
-  // adminCreateUser,
-  // adminDeleteUser,
-} from './api/index'; // Asegúrate de que has creado este archivo
+  adminGetAllUsers,
+  adminUpdateUser,
+  adminCreateUser,
+  adminDeleteUser,
+} from './api/index';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
 import AchievementSystem from './components/AchievementSystem';
@@ -71,7 +68,6 @@ const useEloPreview = ({ currentUser, opponent, score1, score2, matchType }) => 
   const [eloPreview, setEloPreview] = useState(null);
 
   useEffect(() => {
-    // Primero, nos aseguramos de tener todos los datos necesarios.
     if (!currentUser || !opponent || score1 === '' || score2 === '' || !matchType) {
       setEloPreview(null);
       return;
@@ -88,10 +84,8 @@ const useEloPreview = ({ currentUser, opponent, score1, score2, matchType }) => 
           match_type: matchType,
         };
         
-        // Llamamos a la función de la API que creamos en api/index.js
         const response = await getEloPreview(previewData);
         setEloPreview(response.data);
-
       } catch (error) {
         console.error("Error al obtener la previsualización del ELO:", error);
         setEloPreview(null);
@@ -99,13 +93,10 @@ const useEloPreview = ({ currentUser, opponent, score1, score2, matchType }) => 
     };
 
     fetchPreview();
-    // Este hook se volverá a ejecutar cada vez que uno de estos valores cambie.
   }, [currentUser, opponent, score1, score2, matchType]);
 
   return eloPreview;
 };
-
-// Base Airtable interaction is handled via api/airtable.js
 
 // Auth Context
 const AuthContext = createContext();
@@ -127,10 +118,10 @@ const AuthProvider = ({ children }) => {
     console.group('Login');
     console.log('Credenciales ingresadas:', { username, password });
     try {
-      const response = await apiLogin(username, password); // Llama a tu backend
+      const response = await apiLogin(username, password);
       const { access_token, user_details } = response.data;
 
-      localStorage.setItem('token', access_token); // Guarda el token real
+      localStorage.setItem('token', access_token);
       localStorage.setItem('user', JSON.stringify(user_details));
       
       setToken(access_token);
@@ -141,7 +132,6 @@ const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Error de login:', error.message);
-      // ... (código de Gemini sin cambios)
       console.groupEnd();
       return { success: false, error: 'Usuario o contraseña incorrectos' };
     }
@@ -151,8 +141,7 @@ const AuthProvider = ({ children }) => {
     console.group('Registro');
     console.log('Datos de registro:', { username, password });
     try {
-      // La función apiRegister es la que importaste de 'api/index.js'
-      await apiRegister(username, password); // <- Llamada a tu backend
+      await apiRegister(username, password);
       
       console.log('Registro exitoso para', username);
       console.groupEnd();
@@ -168,10 +157,10 @@ const AuthProvider = ({ children }) => {
         console.warn('[Gemini] No se pudo generar sugerencia automática.');
       }
       console.groupEnd();
-      // Obtenemos un error más específico desde el backend
       return { success: false, error: error.response?.data?.detail || 'Error de registro' };
     }
   };
+
   const logout = () => {
     console.log('Cerrando sesión');
     localStorage.removeItem('token');
@@ -363,12 +352,11 @@ const Dashboard = () => {
   const [showLoginView, setShowLoginView] = useState(false);
   const [loginViewMode, setLoginViewMode] = useState('login');
 
-  // Fetch rankings with 7-day evolution
   const fetchRankings = async () => {
     console.group('Fetch Rankings');
     try {
-      const response = await getRankings(); // Llama directamente a tu backend
-      setRankings(response.data); // Los datos ya vienen listos para mostrar
+      const response = await getRankings();
+      setRankings(response.data);
       console.log('Rankings actualizados, total:', response.data.length);
     } catch (error) {
       console.error('Error fetching rankings:', error);
@@ -385,60 +373,56 @@ const Dashboard = () => {
     console.groupEnd();
   };
 
-  // Fetch user-specific matches
-  // Nueva función para historial de partidos
-const fetchMatches = async () => {
-  if (!user) {
-    console.warn('Usuario undefined en fetchMatches');
-    return;
-  }
-  console.group('Fetch Matches');
-  try {
-    const response = await getMatchHistory(); // Llama a tu backend
-    setMatches(response.data);
-    console.log('Actualizados matches del usuario:', response.data.length);
-  } catch (error) {
-    console.error('Error fetching matches:', error);
-    try {
-      const suggestion = await analyzeErrorWithGemini(error);
-      console.groupCollapsed('[🧠 Gemini Suggestion]');
-      console.log(suggestion);
-      console.groupEnd();
-    } catch {
-      console.warn('[Gemini] No se pudo generar sugerencia automática.');
+  const fetchMatches = async () => {
+    if (!user) {
+      console.warn('Usuario undefined en fetchMatches');
+      return;
     }
-    setMatches([]);
-  }
-  console.groupEnd();
-};
-
-// Nueva función para partidos pendientes
-const fetchPendingMatches = async () => {
-  if (!user) {
-    console.warn('Usuario undefined en fetchPendingMatches');
-    return;
-  }
-  console.group('Fetch Pending Matches');
-  try {
-    const response = await getPendingMatches(); // Una sola llamada, el backend sabe si eres admin
-    setPendingMatches(response.data);
-    console.log('Pendientes obtenidos:', response.data.length);
-  } catch (error) {
-    console.error('Error fetching pending matches:', error);
+    console.group('Fetch Matches');
     try {
-      const suggestion = await analyzeErrorWithGemini(error);
-      console.groupCollapsed('[🧠 Gemini Suggestion]');
-      console.log(suggestion);
-      console.groupEnd();
-    } catch {
-      console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      const response = await getMatchHistory();
+      setMatches(response.data);
+      console.log('Actualizados matches del usuario:', response.data.length);
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
+      setMatches([]);
     }
-    setPendingMatches([]);
-  }
-  console.groupEnd();
-};
+    console.groupEnd();
+  };
 
- // Check for new achievements
+  const fetchPendingMatches = async () => {
+    if (!user) {
+      console.warn('Usuario undefined en fetchPendingMatches');
+      return;
+    }
+    console.group('Fetch Pending Matches');
+    try {
+      const response = await getPendingMatches();
+      setPendingMatches(response.data);
+      console.log('Pendientes obtenidos:', response.data.length);
+    } catch (error) {
+      console.error('Error fetching pending matches:', error);
+      try {
+        const suggestion = await analyzeErrorWithGemini(error);
+        console.groupCollapsed('[🧠 Gemini Suggestion]');
+        console.log(suggestion);
+        console.groupEnd();
+      } catch {
+        console.warn('[Gemini] No se pudo generar sugerencia automática.');
+      }
+      setPendingMatches([]);
+    }
+    console.groupEnd();
+  };
+
   const checkAchievements = async () => {
     if (!user) {
       console.warn('Usuario undefined en checkAchievements');
@@ -446,8 +430,7 @@ const fetchPendingMatches = async () => {
     }
     console.group('Check Achievements');
     try {
-      // Llama a la nueva función de tu API
-      const response = await getMyAchievements(); 
+      const response = await getMyAchievements();
       const data = response.data;
 
       console.log('Badges nuevos:', data.new_badges?.length || 0);
@@ -469,12 +452,10 @@ const fetchPendingMatches = async () => {
     console.groupEnd();
   };
 
-  // Cargar rankings al montar el componente
   useEffect(() => {
     fetchRankings();
   }, []);
 
-  // Ejecutar acciones dependientes del usuario
   useEffect(() => {
     if (user) {
       console.log('Usuario disponible:', user.username);
@@ -506,10 +487,7 @@ const fetchPendingMatches = async () => {
     }
     console.group('Confirmar partido');
     try {
-      // Solo necesitas llamar a tu backend con el ID del partido. ¡Nada más!
       await apiConfirmMatch(matchId);
-
-      // Una vez que el backend termina, simplemente refresca los datos del frontend.
       fetchPendingMatches();
       fetchRankings();
       fetchMatches();
@@ -530,18 +508,16 @@ const fetchPendingMatches = async () => {
     }
     console.groupEnd();
   };
- const rejectMatch = async (matchId) => {
+
+  const rejectMatch = async (matchId) => {
     if (!user) {
       console.warn('Usuario undefined en rejectMatch');
       return;
     }
     console.group('Rechazar partido');
     try {
-      // Llama a la nueva función de tu API (api/index.js)
-      await apiDeclineMatch(matchId); 
-      
-      // Refresca los datos del frontend
-      fetchPendingMatches(); 
+      await apiDeclineMatch(matchId);
+      fetchPendingMatches();
       console.log('Partido rechazado', matchId);
     } catch (error) {
       console.error('Error rejecting match:', error);
@@ -600,7 +576,6 @@ const fetchPendingMatches = async () => {
     <div className="min-h-screen relative">
       <div className="app-background"></div>
       
-      {/* Achievement Notifications */}
       {achievementNotifications.length > 0 && (
         <AchievementNotification
           achievements={achievementNotifications}
@@ -608,7 +583,6 @@ const fetchPendingMatches = async () => {
         />
       )}
 
-      {/* Player Profile Modal */}
       {selectedPlayer && (
         <PlayerProfile
           playerId={selectedPlayer.id}
@@ -618,7 +592,6 @@ const fetchPendingMatches = async () => {
         />
       )}
 
-      {/* Header */}
       <div className="premium-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
@@ -684,7 +657,6 @@ const fetchPendingMatches = async () => {
         </div>
       </div>
 
-      {/* Navigation & Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="premium-nav mb-8 justify-center">
           <TabButton tab="rankings" label={t('rankings')} icon="🏆" />
@@ -740,7 +712,7 @@ const fetchPendingMatches = async () => {
             <AdminTab />
           )}
           {!user && (activeTab === 'submit' || activeTab === 'pending' || activeTab === 'history' || activeTab === 'admin') && (
-             <div className="text-center py-12">
+            <div className="text-center py-12">
               <div className="text-6xl mb-4">🔒</div>
               <h3 className="premium-title text-2xl mb-4">Acceso Restringido</h3>
               <p className="text-gray-400 mb-8">Esta sección es exclusiva para miembros del club</p>
@@ -777,9 +749,9 @@ const AdminTab = () => {
     console.group('Fetch Users');
     setLoading(true);
     try {
-      const data = await listRecords('Users');
-      setUsers(data);
-      console.log('Usuarios cargados:', data.length);
+      const response = await adminGetAllUsers();
+      setUsers(response.data);
+      console.log('Usuarios cargados:', response.data.length);
     } catch (error) {
       setError('Error al cargar usuarios');
       console.error('Error fetching users:', error);
@@ -808,18 +780,7 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await createRecord(
-        'Users',
-        denormalizeUser({
-          username: createFormData.username,
-          password: createFormData.password,
-          is_admin: createFormData.is_admin,
-          is_active: createFormData.is_active,
-          elo_rating: 1200,
-          matches_played: 0,
-          matches_won: 0,
-        })
-      );
+      await adminCreateUser(createFormData);
       console.log('Usuario creado');
       setSuccess('Usuario creado exitosamente');
       setCreateFormData({
@@ -853,7 +814,7 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await updateRecord('Users', userId, denormalizeUser(updateData));
+      await adminUpdateUser(userId, updateData);
       console.log('Usuario actualizado', userId);
       setSuccess('Usuario actualizado exitosamente');
       setEditingUser(null);
@@ -885,7 +846,7 @@ const AdminTab = () => {
     setSuccess('');
 
     try {
-      await deleteRecord('Users', userId);
+      await adminDeleteUser(userId);
       console.log('Usuario eliminado', userId);
       setSuccess('Usuario eliminado exitosamente');
       fetchUsers();
@@ -1255,7 +1216,6 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   useEffect(() => {
     const loadPlayers = async () => {
       try {
-        // Usamos la función getRankings que ya tenemos para cargar a todos los jugadores
         const response = await getRankings();
         setAllPlayers(response.data);
       } catch (err) {
@@ -1272,6 +1232,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     };
     loadPlayers();
   }, []);
+
   const typedOpponent =
     findUserByUsername(allPlayers, formData.opponent_username) ||
     findUserByUsername(rankings, formData.opponent_username);
@@ -1332,7 +1293,6 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       
       const winnerId = myScore > oppScore ? user.id : opponent.id;
 
-      // El payload para tu backend ahora es mucho más simple.
       const matchPayload = {
         player1_id: user.id,
         player2_id: opponent.id,
@@ -1342,8 +1302,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       };
 
       console.log('Payload:', matchPayload);
-      // Llama a la función de tu API (api/index.js)
-      await submitMatch(matchPayload); 
+      await submitMatch(matchPayload);
       
       console.log('Resultado enviado con éxito');
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
@@ -1375,7 +1334,6 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   };
 
   useEffect(() => {
-    // Ya no necesitamos un "debounce" porque la búsqueda es instantánea (local)
     if (formData.opponent_username.length >= 2) {
       const suggestions = allPlayers.filter(player => 
         player.username.toLowerCase().includes(formData.opponent_username.toLowerCase()) &&
@@ -1387,15 +1345,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     }
   }, [formData.opponent_username, allPlayers, user.username]);
 
-
-
   const handleSuggestionClick = (suggestion) => {
     setFormData({ ...formData, opponent_username: suggestion.username });
     setSelectedOpponent(suggestion);
     setOpponentSuggestions([]);
   };
-
-
 
   return (
     <div className="space-y-6">
@@ -1501,7 +1455,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
                 onChange={(e) => setFormData({ ...formData, break_and_run: e.target.checked })}
                 className="mr-2 accent-yellow-500"
               />
-              Break &amp; Run
+              Break & Run
             </label>
             <label className="flex items-center">
               <input
@@ -1567,10 +1521,10 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         </div>
       )}
       {!eloPreview && canCalculatePreview && (
-          <div className="mt-8 text-yellow-400 text-sm">
-            ⚠️ No se pudo calcular el cambio de ELO.
-          </div>
-        )}
+        <div className="mt-8 text-yellow-400 text-sm">
+          ⚠️ No se pudo calcular el cambio de ELO.
+        </div>
+      )}
     </div>
   );
 };
@@ -1579,70 +1533,70 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => {
   const { t } = useTranslation();
 
   return (
-  <div className="space-y-6">
-    <div className="text-center">
-      <h2 className="premium-title text-3xl mb-2">{t('pendingMatches')}</h2>
-      <p className="text-gray-400">Confirma o rechaza los resultados enviados</p>
-    </div>
-    
-    {matches.length === 0 ? (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">✅</div>
-        <h3 className="premium-subtitle text-xl mb-2">Todo al día</h3>
-        <p className="text-gray-400">No tienes partidos pendientes de confirmación</p>
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="premium-title text-3xl mb-2">{t('pendingMatches')}</h2>
+        <p className="text-gray-400">Confirma o rechaza los resultados enviados</p>
       </div>
-    ) : (
-      <div className="space-y-4">
-        {matches.map((match) => (
-          <div key={match.id} className="premium-card p-6 hover:border-yellow-500/50 transition-colors">
-            <div className="flex justify-between items-start">
-              <div className="space-y-2">
-                <div className="flex items-center space-x-4">
-                  <h3 className="text-xl font-semibold text-yellow-400">
-                    {match.player1_username} vs {match.player2_username}
-                  </h3>
-                  <span className="status-pending">
-                    Pendiente
-                  </span>
+      
+      {matches.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">✅</div>
+          <h3 className="premium-subtitle text-xl mb-2">Todo al día</h3>
+          <p className="text-gray-400">No tienes partidos pendientes de confirmación</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {matches.map((match) => (
+            <div key={match.id} className="premium-card p-6 hover:border-yellow-500/50 transition-colors">
+              <div className="flex justify-between items-start">
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-4">
+                    <h3 className="text-xl font-semibold text-yellow-400">
+                      {match.player1_username} vs {match.player2_username}
+                    </h3>
+                    <span className="status-pending">
+                      Pendiente
+                    </span>
+                  </div>
+                  <div className="text-gray-300">
+                    <span className="font-medium">Tipo:</span> {match.match_type.replace('_', ' ')} • 
+                    <span className="font-medium ml-2">Resultado:</span> {match.result}
+                  </div>
+                  <div className="text-gray-400">
+                    <span className="font-medium">Ganador reportado:</span> 
+                    <span className="text-green-400 ml-1">{match.winner_username}</span>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {new Date(match.created_at).toLocaleDateString('es-ES', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
                 </div>
-                <div className="text-gray-300">
-                  <span className="font-medium">Tipo:</span> {match.match_type.replace('_', ' ')} • 
-                  <span className="font-medium ml-2">Resultado:</span> {match.result}
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => onConfirm(match.id)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    ✓ {t('confirm')}
+                  </button>
+                  <button
+                    onClick={() => onReject(match.id)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    ✗ {t('reject')}
+                  </button>
                 </div>
-                <div className="text-gray-400">
-                  <span className="font-medium">Ganador reportado:</span> 
-                  <span className="text-green-400 ml-1">{match.winner_username}</span>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {new Date(match.created_at).toLocaleDateString('es-ES', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </div>
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => onConfirm(match.id)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  ✓ {t('confirm')}
-                </button>
-                <button
-                  onClick={() => onReject(match.id)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  ✗ {t('reject')}
-                </button>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -1650,75 +1604,75 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => {
   const { t } = useTranslation();
 
   return (
-  <div className="space-y-6">
-    <div className="text-center">
-      <h2 className="premium-title text-3xl mb-2">{t('matchHistory')}</h2>
-      <p className="text-gray-400">Tu trayectoria en el club</p>
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="premium-title text-3xl mb-2">{t('matchHistory')}</h2>
+        <p className="text-gray-400">Tu trayectoria en el club</p>
+      </div>
+      
+      {matches.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">🎱</div>
+          <h3 className="premium-subtitle text-xl mb-2">Sin historial</h3>
+          <p className="text-gray-400">Aún no tienes partidos confirmados</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>{t('opponent')}</th>
+                <th>{t('matchType')}</th>
+                <th>{t('result')}</th>
+                <th>Estado</th>
+                <th>Perfil</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matches.map((match) => {
+                const isWinner = match.winner_username === currentUser?.username;
+                const opponent = match.player1_username === currentUser?.username 
+                  ? match.player2_username 
+                  : match.player1_username;
+                
+                return (
+                  <tr key={match.id} className="interactive-element">
+                    <td className="text-sm">
+                      {new Date(match.confirmed_at).toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      })}
+                    </td>
+                    <td className="font-semibold text-yellow-400">{opponent}</td>
+                    <td className="text-sm capitalize">{match.match_type.replace('_', ' ')}</td>
+                    <td className="font-medium">{match.result}</td>
+                    <td>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        isWinner 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-red-600 text-white'
+                      }`}>
+                        {isWinner ? '🏆 Victoria' : '💔 Derrota'}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => onPlayerClick({ username: opponent })}
+                        className="text-yellow-400 hover:text-yellow-300 text-sm underline transition-colors"
+                      >
+                        Ver Perfil
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
-    
-    {matches.length === 0 ? (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">🎱</div>
-        <h3 className="premium-subtitle text-xl mb-2">Sin historial</h3>
-        <p className="text-gray-400">Aún no tienes partidos confirmados</p>
-      </div>
-    ) : (
-      <div className="overflow-x-auto">
-        <table className="premium-table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>{t('opponent')}</th>
-              <th>{t('matchType')}</th>
-              <th>{t('result')}</th>
-              <th>Estado</th>
-              <th>Perfil</th>
-            </tr>
-          </thead>
-          <tbody>
-            {matches.map((match) => {
-              const isWinner = match.winner_username === currentUser?.username;
-              const opponent = match.player1_username === currentUser?.username 
-                ? match.player2_username 
-                : match.player1_username;
-              
-              return (
-                <tr key={match.id} className="interactive-element">
-                  <td className="text-sm">
-                    {new Date(match.confirmed_at).toLocaleDateString('es-ES', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric'
-                    })}
-                  </td>
-                  <td className="font-semibold text-yellow-400">{opponent}</td>
-                  <td className="text-sm capitalize">{match.match_type.replace('_', ' ')}</td>
-                  <td className="font-medium">{match.result}</td>
-                  <td>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      isWinner 
-                        ? 'bg-green-600 text-white' 
-                        : 'bg-red-600 text-white'
-                    }`}>
-                      {isWinner ? '🏆 Victoria' : '💔 Derrota'}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => onPlayerClick({ username: opponent })}
-                      className="text-yellow-400 hover:text-yellow-300 text-sm underline transition-colors"
-                    >
-                      Ver Perfil
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    )}
-  </div>
   );
 };
 
