@@ -1289,10 +1289,10 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
   console.log('Puede calcular preview:', canCalculatePreview);
 
   const eloPreview = useEloPreview({
-    currentUsername: user?.username,
-    opponentUsername: opponent?.username || formData.opponent_username,
-    score1: parseInt(formData.my_score, 10),
-    score2: parseInt(formData.opponent_score, 10),
+    currentUser: user,
+    opponent: opponent,
+    score1: formData.my_score,
+    score2: formData.opponent_score,
     matchType: formData.match_type,
   });
 
