@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+// Importamos las nuevas funciones de nuestra API, no de Airtable
 import {
-  listRecords,
-  searchUsers,
-  fetchUserBadges,
-  fetchBadges,
-  fetchMatchesForUser,
-} from '../api/airtable';
+  getUserProfile,
+  getUserAchievements,
+  getUserMatchHistory,
+} from '../api';
 
 
 
-const PlayerProfile = ({ playerId, playerUsername, currentUser, onClose }) => {
+const PlayerProfile = ({ playerId, currentUser, onClose }) => {
   const { t } = useTranslation();
   const [player, setPlayer] = useState(null);
   const [playerAchievements, setPlayerAchievements] = useState(null);
@@ -20,35 +19,33 @@ const PlayerProfile = ({ playerId, playerUsername, currentUser, onClose }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    if (playerId || playerUsername) {
+    if (playerId) {
       fetchPlayerData();
     }
-  }, [playerId, playerUsername]);
+  }, [playerId]);
 
   const fetchPlayerData = async () => {
     setLoading(true);
     try {
-      let targetPlayerId = playerId;
-      if (!targetPlayerId && playerUsername) {
-        const results = await searchUsers(playerUsername);
-        const found = results.find(p => p.username === playerUsername);
-        if (found) targetPlayerId = found.id;
-      }
-      if (!targetPlayerId) throw new Error('Jugador no encontrado');
+      // Usamos Promise.all para hacer las llamadas a la API en paralelo y mejorar la velocidad
+      const [profileRes, achievementsRes, matchesRes] = await Promise.all([
+        getUserProfile(playerId),
+        getUserAchievements(playerId),
+        getUserMatchHistory(playerId),
+      ]);
 
-      const users = await listRecords('Users');
-      const playerData = users.find(u => u.id === targetPlayerId);
-      const achievements = await fetchUserBadges(targetPlayerId);
-      const matches = await fetchMatchesForUser(playerData.username);
-
+      const playerData = profileRes.data;
       setPlayer(playerData);
-      setPlayerAchievements(achievements);
+      setPlayerAchievements(achievementsRes.data);
+      setPlayerMatches(matchesRes.data);
+
+      // El estado `playerStats` ahora se deriva directamente del perfil del jugador
       setPlayerStats({
         matches_played: playerData.matches_played,
         matches_won: playerData.matches_won,
         elo_rating: playerData.elo_rating,
       });
-      setPlayerMatches(matches);
+
     } catch (error) {
       console.error('Error fetching player data:', error);
     }
