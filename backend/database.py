@@ -5,8 +5,11 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
 
-# Database URL - using SQLite for simplicity
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./pool_club.db")
+# --- CORRECCIÓN AQUÍ ---
+# Se ha reemplazado la URL de SQLite por la de Supabase (PostgreSQL).
+# Se usa 'postgresql+asyncpg' para la conexión asíncrona con FastAPI.
+# La contraseña ha sido insertada como me pediste.
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:2gWXbNqaI3iyskRM@db.jawsgnechppephcpllav.supabase.co:5432/postgres")
 
 # Create async engine
 engine = create_async_engine(DATABASE_URL, echo=True)
