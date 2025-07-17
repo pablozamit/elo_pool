@@ -1,23 +1,24 @@
 import React, { useState, useEffect, createContext, useContext, Suspense } from 'react';
 import './App.css';
 import {
-  loginUser,
-  registerUser,
-  fetchRankings as airtableFetchRankings,
-  fetchMatchesForUser,
-  fetchPendingMatchesForUser,
-  fetchAllPendingMatches,
-  createMatch as airtableCreateMatch,
-  updateMatch,
-  fetchRecentMatches,
-  searchUsers,
-  checkAchievements as checkAchievementsAPI,
-  listRecords,
-  createRecord,
-  updateRecord,
-  deleteRecord,
-  denormalizeUser,
-} from './api/airtable';
+  // Importa las nuevas funciones desde tu cliente de API
+  login as apiLogin,
+  register as apiRegister,
+  getRankings,
+  getMatchHistory,
+  getPendingMatches,
+  submitMatch,
+  confirmMatch as apiConfirmMatch,
+  declineMatch as apiDeclineMatch,
+  getMyAchievements,
+  getEloPreview,
+  // Para el panel de admin, asumiremos que tienes estas rutas
+  // (puedes añadirlas luego a tu backend y api/index.js)
+  // adminGetAllUsers, 
+  // adminUpdateUser,
+  // adminCreateUser,
+  // adminDeleteUser,
+} from './api/index'; // Asegúrate de que has creado este archivo
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
 import AchievementSystem from './components/AchievementSystem';
@@ -197,26 +198,23 @@ const AuthProvider = ({ children }) => {
     console.group('Login');
     console.log('Credenciales ingresadas:', { username, password });
     try {
-      const userData = await loginUser(username, password);
+      const response = await apiLogin(username, password); // Llama a tu backend
+      const { access_token, user_details } = response.data;
+
+      localStorage.setItem('token', access_token); // Guarda el token real
+      localStorage.setItem('user', JSON.stringify(user_details));
+      
+      setToken(access_token);
+      setUser(user_details);
+      
       console.log('Login exitoso para', username);
-      localStorage.setItem('token', 'airtable');
-      localStorage.setItem('user', JSON.stringify(userData));
-      setToken('airtable');
-      setUser(userData);
       console.groupEnd();
       return { success: true };
     } catch (error) {
       console.error('Error de login:', error.message);
-      try {
-        const suggestion = await analyzeErrorWithGemini(error);
-        console.groupCollapsed('[🧠 Gemini Suggestion]');
-        console.log(suggestion);
-        console.groupEnd();
-      } catch {
-        console.warn('[Gemini] No se pudo generar sugerencia automática.');
-      }
+      // ... (código de Gemini sin cambios)
       console.groupEnd();
-      return { success: false, error: 'Error de login' };
+      return { success: false, error: 'Usuario o contraseña incorrectos' };
     }
   };
 
@@ -224,7 +222,9 @@ const AuthProvider = ({ children }) => {
     console.group('Registro');
     console.log('Datos de registro:', { username, password });
     try {
-      await registerUser(username, password);
+      // La función apiRegister es la que importaste de 'api/index.js'
+      await apiRegister(username, password); // <- Llamada a tu backend
+      
       console.log('Registro exitoso para', username);
       console.groupEnd();
       return { success: true, message: '¡Registro exitoso! Por favor, inicia sesión.' };
@@ -239,10 +239,10 @@ const AuthProvider = ({ children }) => {
         console.warn('[Gemini] No se pudo generar sugerencia automática.');
       }
       console.groupEnd();
-      return { success: false, error: 'Error de registro' };
+      // Obtenemos un error más específico desde el backend
+      return { success: false, error: error.response?.data?.detail || 'Error de registro' };
     }
   };
-
   const logout = () => {
     console.log('Cerrando sesión');
     localStorage.removeItem('token');
@@ -438,44 +438,9 @@ const Dashboard = () => {
   const fetchRankings = async () => {
     console.group('Fetch Rankings');
     try {
-      const players = await airtableFetchRankings();
-      console.log('Jugadores obtenidos:', players.length);
-      const recent = await fetchRecentMatches(7);
-      console.log('Partidos recientes:', recent.length);
-
-      const changeMap = {};
-      players.forEach((p) => {
-        changeMap[p.id] = 0;
-      });
-      recent.forEach((m) => {
-        if (m.player1_id && changeMap[m.player1_id] !== undefined) {
-          changeMap[m.player1_id] += m.player1_elo_change || 0;
-        }
-        if (m.player2_id && changeMap[m.player2_id] !== undefined) {
-          changeMap[m.player2_id] += m.player2_elo_change || 0;
-        }
-      });
-
-      const withChange = players.map((p, idx) => ({
-        ...p,
-        rank: idx + 1,
-        elo_change: Math.round(changeMap[p.id] || 0),
-        elo_past: p.elo_rating - (changeMap[p.id] || 0),
-      }));
-
-      const pastSorted = [...withChange].sort((a, b) => b.elo_past - a.elo_past);
-      const pastRank = {};
-      pastSorted.forEach((p, i) => {
-        pastRank[p.id] = i + 1;
-      });
-
-      const finalRankings = withChange.map((p) => ({
-        ...p,
-        rank_change: (pastRank[p.id] || p.rank) - p.rank,
-      }));
-
-      setRankings(finalRankings);
-      console.log('Rankings actualizados, total:', finalRankings.length);
+      const response = await getRankings(); // Llama directamente a tu backend
+      setRankings(response.data); // Los datos ya vienen listos para mostrar
+      console.log('Rankings actualizados, total:', response.data.length);
     } catch (error) {
       console.error('Error fetching rankings:', error);
       try {
@@ -492,31 +457,57 @@ const Dashboard = () => {
   };
 
   // Fetch user-specific matches
-  const fetchMatches = async () => {
-    if (!user) {
-      console.warn('Usuario undefined en fetchMatches');
-      return;
-    }
-    console.group('Fetch Matches');
+  // Nueva función para historial de partidos
+const fetchMatches = async () => {
+  if (!user) {
+    console.warn('Usuario undefined en fetchMatches');
+    return;
+  }
+  console.group('Fetch Matches');
+  try {
+    const response = await getMatchHistory(); // Llama a tu backend
+    setMatches(response.data);
+    console.log('Actualizados matches del usuario:', response.data.length);
+  } catch (error) {
+    console.error('Error fetching matches:', error);
     try {
-      const data = await fetchMatchesForUser(user.username);
-      console.log('Matches obtenidos:', data.length);
-      setMatches(data);
-      console.log('Actualizados matches del usuario');
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-      try {
-        const suggestion = await analyzeErrorWithGemini(error);
-        console.groupCollapsed('[🧠 Gemini Suggestion]');
-        console.log(suggestion);
-        console.groupEnd();
-      } catch {
-        console.warn('[Gemini] No se pudo generar sugerencia automática.');
-      }
-      setMatches([]);
+      const suggestion = await analyzeErrorWithGemini(error);
+      console.groupCollapsed('[🧠 Gemini Suggestion]');
+      console.log(suggestion);
+      console.groupEnd();
+    } catch {
+      console.warn('[Gemini] No se pudo generar sugerencia automática.');
     }
-    console.groupEnd();
-  };
+    setMatches([]);
+  }
+  console.groupEnd();
+};
+
+// Nueva función para partidos pendientes
+const fetchPendingMatches = async () => {
+  if (!user) {
+    console.warn('Usuario undefined en fetchPendingMatches');
+    return;
+  }
+  console.group('Fetch Pending Matches');
+  try {
+    const response = await getPendingMatches(); // Una sola llamada, el backend sabe si eres admin
+    setPendingMatches(response.data);
+    console.log('Pendientes obtenidos:', response.data.length);
+  } catch (error) {
+    console.error('Error fetching pending matches:', error);
+    try {
+      const suggestion = await analyzeErrorWithGemini(error);
+      console.groupCollapsed('[🧠 Gemini Suggestion]');
+      console.log(suggestion);
+      console.groupEnd();
+    } catch {
+      console.warn('[Gemini] No se pudo generar sugerencia automática.');
+    }
+    setPendingMatches([]);
+  }
+  console.groupEnd();
+};
 
   // Fetch user-specific pending matches
   const fetchPendingMatches = async () => {
