@@ -34,7 +34,14 @@ export const declineMatch = (matchId) => apiClient.post(`/matches/${matchId}/dec
 export const getEloPreview = (player1_id, player2_id, winner_id) => apiClient.post('/elo/preview', { player1_id, player2_id, winner_id });
 
 // Logros
+// Logros
 export const getMyAchievements = () => apiClient.get('/achievements/me');
+
+// Admin
+export const adminGetAllUsers = () => apiClient.get('/admin/users');
+export const adminCreateUser = (userData) => apiClient.post('/admin/users', userData);
+export const adminUpdateUser = (userId, updateData) => apiClient.put(`/admin/users/${userId}`, updateData);
+export const adminDeleteUser = (userId) => apiClient.delete(`/admin/users/${userId}`);
 export const getUserProfile = async (userId) => {
   return apiClient.get(`/users/${userId}`);
 };
