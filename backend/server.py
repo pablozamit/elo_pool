@@ -411,6 +411,53 @@ async def get_my_achievements_endpoint(current_user: UserDB = Depends(get_curren
     achievements = await get_user_achievements_service(db, current_user.id)
     return achievements
 
+# --- Rutas Públicas de Perfil ---
+
+@api_router.get("/users/{user_id}", response_model=UserResponse, tags=["Users"])
+async def get_user_details_endpoint(user_id: str, db: Session = Depends(get_db)):
+    """Obtiene los detalles públicos de un usuario."""
+    result = await db.execute(select(UserDB).where(UserDB.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@api_router.get("/achievements/user/{user_id}", response_model=UserAchievements, tags=["Achievements"])
+async def get_user_achievements_endpoint(user_id: str, db: Session = Depends(get_db)):
+    """Obtiene los logros y el progreso de un usuario específico."""
+    achievements = await get_user_achievements_service(db, user_id)
+    return achievements
+
+@api_router.get("/matches/history/user/{user_id}", response_model=List[MatchResponse], tags=["Matches"])
+async def get_user_match_history_endpoint(user_id: str, db: Session = Depends(get_db)):
+    """Obtiene el historial de partidos confirmados para un usuario específico."""
+    result = await db.execute(
+        select(MatchDB)
+        .where(or_(MatchDB.player1_id == user_id, MatchDB.player2_id == user_id))
+        .where(MatchDB.status == 'confirmed')
+        .order_by(MatchDB.confirmed_at.desc())
+        .limit(50)
+    )
+    matches = result.scalars().all()
+    
+    response = []
+    for match in matches:
+        winner_res = await db.execute(select(UserDB.username).where(UserDB.id == match.winner_id))
+        winner_username = winner_res.scalar_one()
+        match_response = MatchResponse(
+            id=match.id,
+            player1_username=match.player1_username,
+            player2_username=match.player2_username,
+            match_type=match.match_type,
+            result=match.result,
+            winner_username=winner_username,
+            status=match.status,
+            created_at=match.created_at,
+            confirmed_at=match.confirmed_at
+        )
+        response.append(match_response)
+    return response
+
 # -- Admin --
 @api_router.post("/admin/users", response_model=UserResponse, tags=["Admin"])
 async def admin_create_user_endpoint(user_data: UserCreate, admin_user: UserDB = Depends(get_current_admin_user), db: Session = Depends(get_db)):
