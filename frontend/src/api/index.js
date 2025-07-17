@@ -35,3 +35,14 @@ export const getEloPreview = (player1_id, player2_id, winner_id) => apiClient.po
 
 // Logros
 export const getMyAchievements = () => apiClient.get('/achievements/me');
+export const getUserProfile = async (userId) => {
+  return apiClient.get(`/users/${userId}`);
+};
+
+export const getUserAchievements = async (userId) => {
+  return apiClient.get(`/achievements/user/${userId}`);
+};
+
+export const getUserMatchHistory = async (userId) => {
+  return apiClient.get(`/matches/history/user/${userId}`);
+};
