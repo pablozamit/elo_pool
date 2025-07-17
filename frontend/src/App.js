@@ -67,111 +67,40 @@ const simulateEloChange = (playerA, playerB, didAWin, matchType) => {
   };
 };
 
-const useEloPreview = ({ currentUsername, opponentUsername, score1, score2, matchType }) => {
-  const { user } = useAuth();
+const useEloPreview = ({ currentUser, opponent, score1, score2, matchType }) => {
   const [eloPreview, setEloPreview] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      console.group('ELO Preview');
-      const username = currentUsername || user?.username;
-      if (!username) {
-        console.log('Usuario no definido');
+    // Primero, nos aseguramos de tener todos los datos necesarios.
+    if (!currentUser || !opponent || score1 === '' || score2 === '' || !matchType) {
+      setEloPreview(null);
+      return;
+    }
+
+    const fetchPreview = async () => {
+      try {
+        const winnerId = parseInt(score1, 10) > parseInt(score2, 10) ? currentUser.id : opponent.id;
+        
+        const previewData = {
+          player1_id: currentUser.id,
+          player2_id: opponent.id,
+          winner_id: winnerId,
+          match_type: matchType,
+        };
+        
+        // Llamamos a la función de la API que creamos en api/index.js
+        const response = await getEloPreview(previewData);
+        setEloPreview(response.data);
+
+      } catch (error) {
+        console.error("Error al obtener la previsualización del ELO:", error);
         setEloPreview(null);
-        console.groupEnd();
-        return;
       }
-
-      console.log('Entradas:', {
-        username,
-        opponentUsername,
-        score1,
-        score2,
-        matchType,
-      });
-
-      if (!opponentUsername) {
-        console.log('Nombre de oponente vacío');
-        setEloPreview(null);
-        console.groupEnd();
-        return;
-      }
-
-      const allUsers = await listRecords('Users');
-      const opponent = allUsers.find(
-        (u) => u.username.toLowerCase() === opponentUsername.toLowerCase()
-      );
-
-      if (!opponent) {
-        console.log('No se encontró el usuario rival:', opponentUsername);
-        setEloPreview(null);
-        console.groupEnd();
-        return;
-      }
-
-      if (isNaN(user.elo_rating) || isNaN(opponent.elo_rating)) {
-        console.log('ELO inválido en alguno de los jugadores');
-        setEloPreview(null);
-        console.groupEnd();
-        return;
-      }
-
-      if (
-        score1 === '' ||
-        score2 === '' ||
-        score1 === undefined ||
-        score2 === undefined ||
-        isNaN(score1) ||
-        isNaN(score2)
-      ) {
-        console.log('Scores no ingresados');
-        setEloPreview(null);
-        console.groupEnd();
-        return;
-      }
-
-      const userElo = user.elo_rating;
-      const opponentElo = opponent.elo_rating;
-      const matchWeight =
-        matchType === 'liga_finales'
-          ? 2.5
-          : matchType === 'liga_grupos'
-          ? 2.0
-          : matchType === 'torneo'
-          ? 1.5
-          : 1.0;
-
-      const expectedUser = 1 / (1 + Math.pow(10, (opponentElo - userElo) / 400));
-      const expectedOpponent = 1 - expectedUser;
-
-      const outcomeUser = score1 > score2 ? 1 : 0;
-      const outcomeOpponent = 1 - outcomeUser;
-
-      const k = 32 * matchWeight;
-
-      const userDelta = Math.round(k * (outcomeUser - expectedUser));
-      const opponentDelta = -userDelta;
-
-      setEloPreview({
-        user: {
-          from: userElo,
-          to: userElo + userDelta,
-          delta: userDelta,
-        },
-        opponent: {
-          username: opponent.username,
-          from: opponentElo,
-          to: opponentElo + opponentDelta,
-          delta: opponentDelta,
-        },
-      });
-
-      console.log('ELO Preview generado correctamente');
-      console.groupEnd();
     };
 
-    fetchData();
-  }, [user, currentUsername, opponentUsername, score1, score2, matchType]);
+    fetchPreview();
+    // Este hook se volverá a ejecutar cada vez que uno de estos valores cambie.
+  }, [currentUser, opponent, score1, score2, matchType]);
 
   return eloPreview;
 };
