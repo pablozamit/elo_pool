@@ -602,46 +602,10 @@ const fetchPendingMatches = async () => {
     }
     console.group('Confirmar partido');
     try {
-      const match = pendingMatches.find((m) => m.id === matchId);
-      if (!match) throw new Error('Match not found');
-      console.log('Partido a confirmar:', matchId);
+      // Solo necesitas llamar a tu backend con el ID del partido. ¡Nada más!
+      await apiConfirmMatch(matchId);
 
-      const player1 = rankings.find((p) => p.id === match.player1_id);
-      const player2 = rankings.find((p) => p.id === match.player2_id);
-      if (!player1 || !player2) throw new Error('Players not found');
-
-      const winnerIsP1 = match.winner_id === match.player1_id || match.winner_id === match.player1_username;
-      const winnerElo = winnerIsP1 ? match.player1_elo_before : match.player2_elo_before;
-      const loserElo = winnerIsP1 ? match.player2_elo_before : match.player1_elo_before;
-
-      const { newWinnerElo, newLoserElo } = calculateEloChange(
-        winnerElo,
-        loserElo,
-        match.match_type
-      );
-
-      const player1EloAfter = winnerIsP1 ? newWinnerElo : newLoserElo;
-      const player2EloAfter = winnerIsP1 ? newLoserElo : newWinnerElo;
-
-      await updateMatch(matchId, {
-        status: 'confirmed',
-        confirmed_at: new Date().toISOString(),
-        player1_elo_after: player1EloAfter,
-        player2_elo_after: player2EloAfter,
-      });
-
-      await updateRecord('Users', player1.id, denormalizeUser({
-        elo_rating: player1EloAfter,
-        matches_played: player1.matches_played + 1,
-        matches_won: player1.matches_won + (winnerIsP1 ? 1 : 0),
-      }));
-
-      await updateRecord('Users', player2.id, denormalizeUser({
-        elo_rating: player2EloAfter,
-        matches_played: player2.matches_played + 1,
-        matches_won: player2.matches_won + (winnerIsP1 ? 0 : 1),
-      }));
-
+      // Una vez que el backend termina, simplemente refresca los datos del frontend.
       fetchPendingMatches();
       fetchRankings();
       fetchMatches();
@@ -657,21 +621,23 @@ const fetchPendingMatches = async () => {
       } catch {
         console.warn('[Gemini] No se pudo generar sugerencia automática.');
       }
-      setActionError('Error confirming match');
-      alert('Error confirming match');
+      setActionError('Error al confirmar el partido');
+      alert('Error al confirmar el partido');
     }
     console.groupEnd();
   };
-
-  const rejectMatch = async (matchId) => {
+ const rejectMatch = async (matchId) => {
     if (!user) {
       console.warn('Usuario undefined en rejectMatch');
       return;
     }
     console.group('Rechazar partido');
     try {
-      await updateMatch(matchId, { status: 'rejected' });
-      fetchPendingMatches();
+      // Llama a la nueva función de tu API (api/index.js)
+      await apiDeclineMatch(matchId); 
+      
+      // Refresca los datos del frontend
+      fetchPendingMatches(); 
       console.log('Partido rechazado', matchId);
     } catch (error) {
       console.error('Error rejecting match:', error);
@@ -683,8 +649,8 @@ const fetchPendingMatches = async () => {
       } catch {
         console.warn('[Gemini] No se pudo generar sugerencia automática.');
       }
-      setActionError('Error rejecting match');
-      alert('Error rejecting match');
+      setActionError('Error al rechazar el partido');
+      alert('Error al rechazar el partido');
     }
     console.groupEnd();
   };
@@ -1450,32 +1416,30 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
     try {
       const myScore = parseInt(formData.my_score, 10);
       const oppScore = parseInt(formData.opponent_score, 10);
-      const iWon = myScore > oppScore;
-      if (!opponent) {
-        throw new Error('Opponent not found');
+
+      if (isNaN(myScore) || isNaN(oppScore)) {
+        throw new Error('El resultado debe ser un número.');
       }
+      
+      if (!opponent) {
+        throw new Error('Oponente no encontrado o no seleccionado.');
+      }
+      
+      const winnerId = myScore > oppScore ? user.id : opponent.id;
+
+      // El payload para tu backend ahora es mucho más simple.
       const matchPayload = {
-        player1_username: user.username,
-        player2_username: opponent.username,
-        player1_id: [user.id],
-        player2_id: [opponent.id],
-        match_type: matchTypeLabels[formData.match_type] || formData.match_type,
+        player1_id: user.id,
+        player2_id: opponent.id,
+        winner_id: winnerId,
+        match_type: formData.match_type,
         result: `${myScore}-${oppScore}`,
-        winner_id: [iWon ? user.id : opponent.id],
-        status: 'pending',
-        submitted_by: user.username,
-        created_at: new Date().toISOString(),
-        player1_elo_before: user.elo_rating,
-        player2_elo_before: opponent.elo_rating,
-        player1_total_matches: user.matches_played,
-        player2_total_matches: opponent.matches_played,
-        break_and_run: formData.break_and_run,
-        cleanup: formData.cleanup,
-        castigo_divino: formData.castigo_divino,
-        feliz_navidad: formData.feliz_navidad,
       };
+
       console.log('Payload:', matchPayload);
-      await airtableCreateMatch(matchPayload);
+      // Llama a la función de tu API (api/index.js)
+      await submitMatch(matchPayload); 
+      
       console.log('Resultado enviado con éxito');
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
       setFormData({
