@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar e instalar las dependencias (el paso que fallaba)
+# Copiar e instalar las dependencias
 COPY requirements.txt .
 RUN pip install -r requirements.txt psycopg2-binary
 
