@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete, and_, or_, func
 
 # Importaciones de la base de datos y servicios
-from .database import get_db, create_tables, UserDB, MatchDB, AsyncSessionLocal
+from .database import get_db_ref
 from .achievement_service import check_achievements_after_match, get_user_achievements as get_user_achievements_service
 from .achievements import UserAchievements
 
@@ -65,9 +65,6 @@ class UserResponse(BaseModel):
     is_admin: bool
     is_active: bool
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 class UserUpdateAdmin(BaseModel):
     elo_rating: Optional[float] = None
@@ -136,7 +133,7 @@ def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchT
 
 # --- Dependencias de Seguridad ---
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -146,16 +143,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
-    result = await db.execute(select(UserDB).where(UserDB.id == user_id))
-    user = result.scalar_one_or_none()
+    user_ref = get_db_ref(f'users/{user_id}')
+    user = user_ref.get()
     
-    if user is None or not user.is_active:
+    if user is None or not user.get('is_active'):
         raise HTTPException(status_code=401, detail="User not found or inactive")
         
     return user
 
-async def get_current_admin_user(current_user: UserDB = Depends(get_current_user)):
-    if not current_user.is_admin:
+async def get_current_admin_user(current_user = Depends(get_current_user)):
+    if not current_user.get('is_admin'):
         raise HTTPException(status_code=403, detail="The user doesn't have enough privileges")
     return current_user
 
@@ -165,242 +162,258 @@ api_router = APIRouter(prefix="/api")
 
 # -- Autenticación --
 @api_router.post("/login", tags=["Authentication"])
-async def login(form_data: UserLogin, db: Session = Depends(get_db)):
-    result = await db.execute(select(UserDB).where(UserDB.username == form_data.username))
-    user = result.scalar_one_or_none()
+async def login(form_data: UserLogin):
+    users_ref = get_db_ref('users')
+    user_data = users_ref.order_by_child('username').equal_to(form_data.username).get()
     
-    if not user or not verify_password(form_data.password, user.password_hash):
+    if not user_data:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
         
-    access_token = create_jwt_token(data={"sub": user.id})
+    user_id = list(user_data.keys())[0]
+    user = user_data[user_id]
+    
+    if not verify_password(form_data.password, user['password_hash']):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+        
+    access_token = create_jwt_token(data={"sub": user_id})
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user_details": UserResponse.from_orm(user)
+        "user_details": UserResponse(**user)
     }
 
 # -- Rankings y Partidos --
 @api_router.get("/rankings", response_model=List[dict], tags=["Rankings"])
-async def get_rankings_endpoint(db: Session = Depends(get_db)):
-    result = await db.execute(
-        select(UserDB)
-        .where(UserDB.is_admin == False, UserDB.is_active == True)
-        .order_by(UserDB.elo_rating.desc())
-    )
-    users = result.scalars().all()
+async def get_rankings_endpoint():
+    users_ref = get_db_ref('users')
+    all_users = users_ref.get()
+    
+    if not all_users:
+        return []
+
+    # Filter out admins and inactive users
+    players = [user for user in all_users.values() if not user.get('is_admin') and user.get('is_active')]
+    
+    # Sort by ELO rating
+    players.sort(key=lambda x: x.get('elo_rating', 0), reverse=True)
     
     rankings = []
-    for i, user in enumerate(users):
-        win_rate = (user.matches_won / user.matches_played * 100) if user.matches_played > 0 else 0
+    for i, user in enumerate(players):
+        matches_played = user.get('matches_played', 0)
+        matches_won = user.get('matches_won', 0)
+        win_rate = (matches_won / matches_played * 100) if matches_played > 0 else 0
         rankings.append({
             "rank": i + 1,
-            "id": user.id,
-            "username": user.username,
-            "elo_rating": round(user.elo_rating),
-            "matches_played": user.matches_played,
-            "matches_won": user.matches_won,
+            "id": user.get('id'),
+            "username": user.get('username'),
+            "elo_rating": round(user.get('elo_rating', 0)),
+            "matches_played": matches_played,
+            "matches_won": matches_won,
             "win_rate": round(win_rate, 1),
-            "elo_change": 0, # Placeholder, se podría calcular con datos históricos
+            "elo_change": 0, # Placeholder
             "rank_change": 0 # Placeholder
         })
     return rankings
 
 @api_router.post("/matches/submit", response_model=MatchResponse, tags=["Matches"])
-async def submit_match_endpoint(data: MatchSubmit, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    if data.player1_id != current_user.id:
+async def submit_match_endpoint(data: MatchSubmit, current_user = Depends(get_current_user)):
+    if data.player1_id != current_user['id']:
         raise HTTPException(status_code=403, detail="Player 1 must be the current user")
 
-    p1_res = await db.execute(select(UserDB).where(UserDB.id == data.player1_id))
-    player1 = p1_res.scalar_one()
+    player1_ref = get_db_ref(f'users/{data.player1_id}')
+    player1 = player1_ref.get()
     
-    p2_res = await db.execute(select(UserDB).where(UserDB.id == data.player2_id))
-    player2 = p2_res.scalar_one_or_none()
+    player2_ref = get_db_ref(f'users/{data.player2_id}')
+    player2 = player2_ref.get()
 
     if not player2:
         raise HTTPException(status_code=404, detail="Opponent (Player 2) not found")
 
-    if data.winner_id not in [player1.id, player2.id]:
+    if data.winner_id not in [player1['id'], player2['id']]:
         raise HTTPException(status_code=400, detail="Winner must be one of the players")
         
-    winner_username = player1.username if data.winner_id == player1.id else player2.username
+    winner_username = player1['username'] if data.winner_id == player1['id'] else player2['username']
+    
+    match_id = str(uuid.uuid4())
+    new_match_data = {
+        "id": match_id,
+        "player1_id": player1['id'],
+        "player2_id": player2['id'],
+        "player1_username": player1['username'],
+        "player2_username": player2['username'],
+        "winner_id": data.winner_id,
+        "match_type": data.match_type.value,
+        "result": data.result,
+        "status": "pending",
+        "submitted_by": current_user['id'],
+        "player1_elo_before": player1['elo_rating'],
+        "player2_elo_before": player2['elo_rating'],
+        "created_at": datetime.utcnow().isoformat(),
+        "confirmed_at": None
+    }
 
-    new_match = MatchDB(
-        id=str(uuid.uuid4()),
-        player1_id=player1.id,
-        player2_id=player2.id,
-        player1_username=player1.username,
-        player2_username=player2.username,
-        winner_id=data.winner_id,
-        match_type=data.match_type.value,
-        result=data.result,
-        status="pending",
-        submitted_by=current_user.id,
-        player1_elo_before=player1.elo_rating,
-        player2_elo_before=player2.elo_rating,
-    )
-
-    db.add(new_match)
-    await db.commit()
-    await db.refresh(new_match)
+    get_db_ref(f'matches/{match_id}').set(new_match_data)
     
     return MatchResponse(
-        id=new_match.id,
-        player1_username=new_match.player1_username,
-        player2_username=new_match.player2_username,
-        match_type=new_match.match_type,
-        result=new_match.result,
-        winner_username=winner_username,
-        status=new_match.status,
-        created_at=new_match.created_at,
-        confirmed_at=new_match.confirmed_at
+        **new_match_data,
+        winner_username=winner_username
     )
 
 @api_router.get("/matches/pending", response_model=List[MatchResponse], tags=["Matches"])
-async def get_pending_matches_endpoint(current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Un admin ve todos los pendientes, un jugador solo los que debe confirmar
-    query = select(MatchDB).where(MatchDB.status == "pending")
-    if not current_user.is_admin:
-        query = query.where(MatchDB.player2_id == current_user.id, MatchDB.submitted_by != current_user.id)
+async def get_pending_matches_endpoint(current_user = Depends(get_current_user)):
+    matches_ref = get_db_ref('matches')
+    query = matches_ref.order_by_child('status').equal_to('pending')
+    matches = query.get()
     
-    result = await db.execute(query.order_by(MatchDB.created_at.desc()))
-    matches = result.scalars().all()
-
+    if not matches:
+        return []
+        
     response = []
-    for match in matches:
-        winner_res = await db.execute(select(UserDB.username).where(UserDB.id == match.winner_id))
-        winner_username = winner_res.scalar_one()
+    for match_id, match in matches.items():
+        if not current_user['is_admin']:
+            if match['player2_id'] != current_user['id'] or match['submitted_by'] == current_user['id']:
+                continue
+        
+        winner_ref = get_db_ref(f"users/{match['winner_id']}")
+        winner = winner_ref.get()
+        winner_username = winner['username'] if winner else "Unknown"
+
         response.append(MatchResponse(
-            id=match.id,
-            player1_username=match.player1_username,
-            player2_username=match.player2_username,
-            match_type=match.match_type,
-            result=match.result,
+            **match,
             winner_username=winner_username,
-            status=match.status,
-            created_at=match.created_at,
-            confirmed_at=match.confirmed_at,
         ))
     return response
 
 @api_router.post("/matches/{match_id}/confirm", tags=["Matches"])
-async def confirm_match_endpoint(match_id: str, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    res = await db.execute(select(MatchDB).where(MatchDB.id == match_id))
-    match = res.scalar_one_or_none()
+async def confirm_match_endpoint(match_id: str, current_user = Depends(get_current_user)):
+    match_ref = get_db_ref(f'matches/{match_id}')
+    match = match_ref.get()
 
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
-    if match.status != "pending":
+    if match['status'] != "pending":
         raise HTTPException(status_code=400, detail="Match is not pending confirmation")
-    if match.player2_id != current_user.id:
+    if match['player2_id'] != current_user['id']:
         raise HTTPException(status_code=403, detail="Only player 2 can confirm the match")
 
-    p1_res = await db.execute(select(UserDB).where(UserDB.id == match.player1_id))
-    player1 = p1_res.scalar_one()
-    p2_res = await db.execute(select(UserDB).where(UserDB.id == match.player2_id))
-    player2 = p2_res.scalar_one()
+    player1_ref = get_db_ref(f"users/{match['player1_id']}")
+    player1 = player1_ref.get()
+    player2_ref = get_db_ref(f"users/{match['player2_id']}")
+    player2 = player2_ref.get()
     
-    winner_id = match.winner_id
-    loser_id = player2.id if winner_id == player1.id else player1.id
+    winner_id = match['winner_id']
+    loser_id = player2['id'] if winner_id == player1['id'] else player1['id']
     
-    winner = player1 if winner_id == player1.id else player2
-    loser = player2 if winner_id == player1.id else player1
+    winner = player1 if winner_id == player1['id'] else player2
+    loser = player2 if winner_id == player1['id'] else player1
 
-    new_winner_elo, new_loser_elo = calculate_elo_change(winner.elo_rating, loser.elo_rating, MatchType(match.match_type))
+    new_winner_elo, new_loser_elo = calculate_elo_change(winner['elo_rating'], loser['elo_rating'], MatchType(match['match_type']))
     
-    # Actualizar ELO y estadísticas
-    winner.elo_rating = new_winner_elo
-    winner.matches_played += 1
-    winner.matches_won += 1
+    # Update winner stats
+    winner_ref = get_db_ref(f"users/{winner_id}")
+    winner_ref.update({
+        'elo_rating': new_winner_elo,
+        'matches_played': winner.get('matches_played', 0) + 1,
+        'matches_won': winner.get('matches_won', 0) + 1
+    })
+
+    # Update loser stats
+    loser_ref = get_db_ref(f"users/{loser_id}")
+    loser_ref.update({
+        'elo_rating': new_loser_elo,
+        'matches_played': loser.get('matches_played', 0) + 1
+    })
     
-    loser.elo_rating = new_loser_elo
-    loser.matches_played += 1
-    
-    # Actualizar partida
-    match.status = 'confirmed'
-    match.confirmed_at = datetime.utcnow()
-    
-    if match.player1_id == winner_id:
-        match.player1_elo_after = new_winner_elo
-        match.player2_elo_after = new_loser_elo
+    # Update match
+    match_updates = {
+        'status': 'confirmed',
+        'confirmed_at': datetime.utcnow().isoformat()
+    }
+    if match['player1_id'] == winner_id:
+        match_updates['player1_elo_after'] = new_winner_elo
+        match_updates['player2_elo_after'] = new_loser_elo
     else:
-        match.player1_elo_after = new_loser_elo
-        match.player2_elo_after = new_winner_elo
+        match_updates['player1_elo_after'] = new_loser_elo
+        match_updates['player2_elo_after'] = new_winner_elo
+    match_ref.update(match_updates)
 
-    # Guardar cambios
-    await db.commit()
-
-    # Comprobar logros
-    await check_achievements_after_match(db, winner_id)
-    await check_achievements_after_match(db, loser_id)
-    await db.commit()
+    # Check achievements
+    # await check_achievements_after_match(db, winner_id)
+    # await check_achievements_after_match(db, loser_id)
+    # await db.commit()
 
     return {"message": "Match confirmed and ELO updated."}
 
 @api_router.post("/matches/{match_id}/decline", tags=["Matches"])
-async def decline_match_endpoint(match_id: str, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    res = await db.execute(select(MatchDB).where(MatchDB.id == match_id))
-    match = res.scalar_one_or_none()
+async def decline_match_endpoint(match_id: str, current_user = Depends(get_current_user)):
+    match_ref = get_db_ref(f'matches/{match_id}')
+    match = match_ref.get()
     
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
-    if match.player2_id != current_user.id and not current_user.is_admin:
+    if match['player2_id'] != current_user['id'] and not current_user.get('is_admin'):
         raise HTTPException(status_code=403, detail="Not authorized to decline this match")
 
-    match.status = 'declined'
-    await db.commit()
+    match_ref.update({'status': 'declined'})
     
     return {"message": "Match declined"}
 
 @api_router.get("/matches/history", response_model=List[MatchResponse], tags=["Matches"])
-async def get_match_history_endpoint(current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    result = await db.execute(
-        select(MatchDB)
-        .where(or_(MatchDB.player1_id == current_user.id, MatchDB.player2_id == current_user.id))
-        .where(MatchDB.status == 'confirmed')
-        .order_by(MatchDB.confirmed_at.desc())
-        .limit(50)
-    )
-    matches = result.scalars().all()
+async def get_match_history_endpoint(current_user = Depends(get_current_user)):
+    matches_ref = get_db_ref('matches')
+    
+    # This is not efficient, but Firebase doesn't support 'OR' queries.
+    # A better solution would be to denormalize the data.
+    all_matches = matches_ref.order_by_child('status').equal_to('confirmed').get()
+    
+    if not all_matches:
+        return []
+        
+    user_matches = []
+    for match_id, match in all_matches.items():
+        if match['player1_id'] == current_user['id'] or match['player2_id'] == current_user['id']:
+            user_matches.append(match)
+            
+    # Sort by confirmed_at descending
+    user_matches.sort(key=lambda x: x.get('confirmed_at') or '', reverse=True)
     
     response = []
-    for match in matches:
-        winner_res = await db.execute(select(UserDB.username).where(UserDB.id == match.winner_id))
-        winner_username = winner_res.scalar_one()
+    for match in user_matches[:50]:
+        winner_ref = get_db_ref(f"users/{match['winner_id']}")
+        winner = winner_ref.get()
+        winner_username = winner['username'] if winner else "Unknown"
+        
         response.append(MatchResponse(
-            id=match.id,
-            player1_username=match.player1_username,
-            player2_username=match.player2_username,
-            match_type=match.match_type,
-            result=match.result,
-            winner_username=winner_username,
-            status=match.status,
-            created_at=match.created_at,
-            confirmed_at=match.confirmed_at
+            **match,
+            winner_username=winner_username
         ))
     return response
 
 @api_router.post("/elo/preview", response_model=EloPreviewResponse, tags=["ELO"])
-async def get_elo_preview_endpoint(data: EloPreviewRequest, db: Session = Depends(get_db)):
-    p1_res = await db.execute(select(UserDB).where(UserDB.id == data.player1_id))
-    player1 = p1_res.scalar_one()
-    p2_res = await db.execute(select(UserDB).where(UserDB.id == data.player2_id))
-    player2 = p2_res.scalar_one()
+async def get_elo_preview_endpoint(data: EloPreviewRequest):
+    player1_ref = get_db_ref(f"users/{data.player1_id}")
+    player1 = player1_ref.get()
+    player2_ref = get_db_ref(f"users/{data.player2_id}")
+    player2 = player2_ref.get()
 
-    winner = player1 if data.winner_id == player1.id else player2
-    loser = player2 if data.winner_id == player1.id else player1
+    if not player1 or not player2:
+        raise HTTPException(status_code=404, detail="One or more players not found")
 
-    new_winner_elo, new_loser_elo = calculate_elo_change(winner.elo_rating, loser.elo_rating, data.match_type)
+    winner = player1 if data.winner_id == player1['id'] else player2
+    loser = player2 if data.winner_id == player1['id'] else player1
+
+    new_winner_elo, new_loser_elo = calculate_elo_change(winner['elo_rating'], loser['elo_rating'], data.match_type)
 
     user_preview = {
-        "from": round(player1.elo_rating),
-        "to": round(new_winner_elo) if player1.id == winner.id else round(new_loser_elo),
-        "delta": round(new_winner_elo - player1.elo_rating) if player1.id == winner.id else round(new_loser_elo - player1.elo_rating)
+        "from": round(player1['elo_rating']),
+        "to": round(new_winner_elo) if player1['id'] == winner['id'] else round(new_loser_elo),
+        "delta": round(new_winner_elo - player1['elo_rating']) if player1['id'] == winner['id'] else round(new_loser_elo - player1['elo_rating'])
     }
     opponent_preview = {
-        "username": player2.username,
-        "from": round(player2.elo_rating),
-        "to": round(new_winner_elo) if player2.id == winner.id else round(new_loser_elo),
-        "delta": round(new_winner_elo - player2.elo_rating) if player2.id == winner.id else round(new_loser_elo - player2.elo_rating)
+        "username": player2['username'],
+        "from": round(player2['elo_rating']),
+        "to": round(new_winner_elo) if player2['id'] == winner['id'] else round(new_loser_elo),
+        "delta": round(new_winner_elo - player2['elo_rating']) if player2['id'] == winner['id'] else round(new_loser_elo - player2['elo_rating'])
     }
 
     return EloPreviewResponse(user=user_preview, opponent=opponent_preview)
@@ -414,13 +427,13 @@ async def get_my_achievements_endpoint(current_user: UserDB = Depends(get_curren
 # --- Rutas Públicas de Perfil ---
 
 @api_router.get("/users/{user_id}", response_model=UserResponse, tags=["Users"])
-async def get_user_details_endpoint(user_id: str, db: Session = Depends(get_db)):
+async def get_user_details_endpoint(user_id: str):
     """Obtiene los detalles públicos de un usuario."""
-    result = await db.execute(select(UserDB).where(UserDB.id == user_id))
-    user = result.scalar_one_or_none()
+    user_ref = get_db_ref(f'users/{user_id}')
+    user = user_ref.get()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return UserResponse(**user)
 
 @api_router.get("/achievements/user/{user_id}", response_model=UserAchievements, tags=["Achievements"])
 async def get_user_achievements_endpoint(user_id: str, db: Session = Depends(get_db)):
@@ -429,83 +442,89 @@ async def get_user_achievements_endpoint(user_id: str, db: Session = Depends(get
     return achievements
 
 @api_router.get("/matches/history/user/{user_id}", response_model=List[MatchResponse], tags=["Matches"])
-async def get_user_match_history_endpoint(user_id: str, db: Session = Depends(get_db)):
+async def get_user_match_history_endpoint(user_id: str):
     """Obtiene el historial de partidos confirmados para un usuario específico."""
-    result = await db.execute(
-        select(MatchDB)
-        .where(or_(MatchDB.player1_id == user_id, MatchDB.player2_id == user_id))
-        .where(MatchDB.status == 'confirmed')
-        .order_by(MatchDB.confirmed_at.desc())
-        .limit(50)
-    )
-    matches = result.scalars().all()
+    matches_ref = get_db_ref('matches')
+    
+    # This is not efficient, but Firebase doesn't support 'OR' queries.
+    # A better solution would be to denormalize the data.
+    all_matches = matches_ref.order_by_child('status').equal_to('confirmed').get()
+    
+    if not all_matches:
+        return []
+        
+    user_matches = []
+    for match_id, match in all_matches.items():
+        if match['player1_id'] == user_id or match['player2_id'] == user_id:
+            user_matches.append(match)
+            
+    # Sort by confirmed_at descending
+    user_matches.sort(key=lambda x: x.get('confirmed_at') or '', reverse=True)
     
     response = []
-    for match in matches:
-        winner_res = await db.execute(select(UserDB.username).where(UserDB.id == match.winner_id))
-        winner_username = winner_res.scalar_one()
-        match_response = MatchResponse(
-            id=match.id,
-            player1_username=match.player1_username,
-            player2_username=match.player2_username,
-            match_type=match.match_type,
-            result=match.result,
-            winner_username=winner_username,
-            status=match.status,
-            created_at=match.created_at,
-            confirmed_at=match.confirmed_at
-        )
-        response.append(match_response)
+    for match in user_matches[:50]:
+        winner_ref = get_db_ref(f"users/{match['winner_id']}")
+        winner = winner_ref.get()
+        winner_username = winner['username'] if winner else "Unknown"
+        
+        response.append(MatchResponse(
+            **match,
+            winner_username=winner_username
+        ))
     return response
 
 # -- Admin --
 @api_router.post("/admin/users", response_model=UserResponse, tags=["Admin"])
-async def admin_create_user_endpoint(user_data: UserCreate, admin_user: UserDB = Depends(get_current_admin_user), db: Session = Depends(get_db)):
-    res = await db.execute(select(UserDB).where(UserDB.username == user_data.username))
-    if res.scalar_one_or_none():
+async def admin_create_user_endpoint(user_data: UserCreate, admin_user = Depends(get_current_admin_user)):
+    users_ref = get_db_ref('users')
+    if users_ref.order_by_child('username').equal_to(user_data.username).get():
         raise HTTPException(status_code=400, detail="Username already exists")
         
-    new_user = UserDB(
-        id=str(uuid.uuid4()),
-        username=user_data.username,
-        password_hash=hash_password(user_data.password),
-        is_admin=user_data.is_admin,
-        is_active=user_data.is_active
-    )
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-    return new_user
+    user_id = str(uuid.uuid4())
+    new_user_data = {
+        "id": user_id,
+        "username": user_data.username,
+        "password_hash": hash_password(user_data.password),
+        "elo_rating": 1200.0,
+        "matches_played": 0,
+        "matches_won": 0,
+        "is_admin": user_data.is_admin,
+        "is_active": user_data.is_active,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    users_ref.child(user_id).set(new_user_data)
+    
+    return UserResponse(**new_user_data)
 
 @api_router.get("/admin/users", response_model=List[UserResponse], tags=["Admin"])
-async def admin_get_all_users_endpoint(admin_user: UserDB = Depends(get_current_admin_user), db: Session = Depends(get_db)):
-    result = await db.execute(select(UserDB).order_by(UserDB.username))
-    return result.scalars().all()
+async def admin_get_all_users_endpoint(admin_user = Depends(get_current_admin_user)):
+    users_ref = get_db_ref('users')
+    users = users_ref.get()
+    if not users:
+        return []
+    return [UserResponse(**user) for user in users.values()]
 
 @api_router.put("/admin/users/{user_id}", response_model=UserResponse, tags=["Admin"])
-async def admin_update_user_endpoint(user_id: str, data: UserUpdateAdmin, admin_user: UserDB = Depends(get_current_admin_user), db: Session = Depends(get_db)):
-    res = await db.execute(select(UserDB).where(UserDB.id == user_id))
-    user = res.scalar_one_or_none()
-    if not user:
+async def admin_update_user_endpoint(user_id: str, data: UserUpdateAdmin, admin_user = Depends(get_current_admin_user)):
+    user_ref = get_db_ref(f'users/{user_id}')
+    user_data = user_ref.get()
+    if not user_data:
         raise HTTPException(status_code=404, detail="User not found")
         
     update_data = data.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(user, key, value)
-        
-    await db.commit()
-    await db.refresh(user)
-    return user
+    user_ref.update(update_data)
+    
+    updated_user_data = user_ref.get()
+    return UserResponse(**updated_user_data)
 
 @api_router.delete("/admin/users/{user_id}", tags=["Admin"])
-async def admin_delete_user_endpoint(user_id: str, admin_user: UserDB = Depends(get_current_admin_user), db: Session = Depends(get_db)):
-    res = await db.execute(select(UserDB).where(UserDB.id == user_id))
-    user = res.scalar_one_or_none()
-    if not user:
+async def admin_delete_user_endpoint(user_id: str, admin_user = Depends(get_current_admin_user)):
+    user_ref = get_db_ref(f'users/{user_id}')
+    if not user_ref.get():
         raise HTTPException(status_code=404, detail="User not found")
         
-    await db.execute(delete(UserDB).where(UserDB.id == user_id))
-    await db.commit()
+    user_ref.delete()
     return {"message": "User deleted successfully"}
 
 # -- Punto de Entrada y Eventos --
