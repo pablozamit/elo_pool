@@ -10,13 +10,10 @@ from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from enum import Enum
-from sqlalchemy.orm import Session
-from sqlalchemy import select, update, delete, and_, or_, func
-
 # Importaciones de la base de datos y servicios
 from .database import get_db_ref
-from .achievement_service import check_achievements_after_match, get_user_achievements as get_user_achievements_service
-from .achievements import UserAchievements
+# from .achievement_service import check_achievements_after_match, get_user_achievements as get_user_achievements_service
+# from .achievements import UserAchievements
 
 # --- Configuración Inicial ---
 JWT_SECRET = os.environ.get("JWT_SECRET", "clave_super_secreta_de_al_menos_32_caracteres_aqui")
@@ -102,12 +99,13 @@ class EloPreviewResponse(BaseModel):
 # --- Lógica de Negocio y Utilidades ---
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-ELO_WEIGHTS = {
-    MatchType.REY_MESA: 1.0,
-    MatchType.TORNEO: 1.5,
-    MatchType.LIGA_GRUPOS: 2.0,
-    MatchType.LIGA_FINALES: 2.5
-}
+
+def get_k_factor(elo: float, matches_played: int) -> int:
+    if matches_played < 30:
+        return 40
+    if elo > 2400:
+        return 10
+    return 20
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -121,13 +119,15 @@ def create_jwt_token(data: dict, expires_delta: timedelta = timedelta(days=7)):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchType) -> tuple[float, float]:
-    k_factor = 32 * ELO_WEIGHTS[match_type]
+def calculate_elo_change(winner_elo: float, loser_elo: float, winner_matches_played: int, loser_matches_played: int) -> tuple[float, float]:
+    k_factor_winner = get_k_factor(winner_elo, winner_matches_played)
+    k_factor_loser = get_k_factor(loser_elo, loser_matches_played)
+
     expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
     expected_loser = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
     
-    new_winner_elo = winner_elo + k_factor * (1 - expected_winner)
-    new_loser_elo = loser_elo + k_factor * (0 - expected_loser)
+    new_winner_elo = winner_elo + k_factor_winner * (1 - expected_winner)
+    new_loser_elo = loser_elo + k_factor_loser * (0 - expected_loser)
     
     return round(new_winner_elo, 2), round(new_loser_elo, 2)
 
@@ -234,7 +234,10 @@ async def submit_match_endpoint(data: MatchSubmit, current_user = Depends(get_cu
         
     winner_username = player1['username'] if data.winner_id == player1['id'] else player2['username']
     
-    match_id = str(uuid.uuid4())
+    matches_ref = get_db_ref('matches')
+    new_match_ref = matches_ref.push()
+    match_id = new_match_ref.key
+
     new_match_data = {
         "id": match_id,
         "player1_id": player1['id'],
@@ -252,7 +255,7 @@ async def submit_match_endpoint(data: MatchSubmit, current_user = Depends(get_cu
         "confirmed_at": None
     }
 
-    get_db_ref(f'matches/{match_id}').set(new_match_data)
+    new_match_ref.set(new_match_data)
     
     return MatchResponse(
         **new_match_data,
@@ -307,7 +310,12 @@ async def confirm_match_endpoint(match_id: str, current_user = Depends(get_curre
     winner = player1 if winner_id == player1['id'] else player2
     loser = player2 if winner_id == player1['id'] else player1
 
-    new_winner_elo, new_loser_elo = calculate_elo_change(winner['elo_rating'], loser['elo_rating'], MatchType(match['match_type']))
+    new_winner_elo, new_loser_elo = calculate_elo_change(
+        winner['elo_rating'],
+        loser['elo_rating'],
+        winner.get('matches_played', 0),
+        loser.get('matches_played', 0)
+    )
     
     # Update winner stats
     winner_ref = get_db_ref(f"users/{winner_id}")
@@ -325,22 +333,38 @@ async def confirm_match_endpoint(match_id: str, current_user = Depends(get_curre
     })
     
     # Update match
+    elo_snapshot = {
+        'before': {
+            'winner_elo': winner['elo_rating'],
+            'loser_elo': loser['elo_rating'],
+        },
+        'after': {
+            'winner_elo': new_winner_elo,
+            'loser_elo': new_loser_elo,
+        }
+    }
+
     match_updates = {
         'status': 'confirmed',
-        'confirmed_at': datetime.utcnow().isoformat()
+        'confirmed_at': datetime.utcnow().isoformat(),
+        'elo_snapshot': elo_snapshot,
     }
+
     if match['player1_id'] == winner_id:
         match_updates['player1_elo_after'] = new_winner_elo
         match_updates['player2_elo_after'] = new_loser_elo
     else:
         match_updates['player1_elo_after'] = new_loser_elo
         match_updates['player2_elo_after'] = new_winner_elo
+
     match_ref.update(match_updates)
 
     # Check achievements
-    # await check_achievements_after_match(db, winner_id)
-    # await check_achievements_after_match(db, loser_id)
-    # await db.commit()
+    # try:
+    #     await check_achievements_after_match(winner_id)
+    #     await check_achievements_after_match(loser_id)
+    # except Exception as e:
+    #     logging.error(f"Error checking achievements: {e}")
 
     return {"message": "Match confirmed and ELO updated."}
 
@@ -402,7 +426,12 @@ async def get_elo_preview_endpoint(data: EloPreviewRequest):
     winner = player1 if data.winner_id == player1['id'] else player2
     loser = player2 if data.winner_id == player1['id'] else player1
 
-    new_winner_elo, new_loser_elo = calculate_elo_change(winner['elo_rating'], loser['elo_rating'], data.match_type)
+    new_winner_elo, new_loser_elo = calculate_elo_change(
+        winner['elo_rating'],
+        loser['elo_rating'],
+        winner.get('matches_played', 0),
+        loser.get('matches_played', 0)
+    )
 
     user_preview = {
         "from": round(player1['elo_rating']),
@@ -419,10 +448,10 @@ async def get_elo_preview_endpoint(data: EloPreviewRequest):
     return EloPreviewResponse(user=user_preview, opponent=opponent_preview)
 
 # -- Logros --
-@api_router.get("/achievements/me", response_model=UserAchievements, tags=["Achievements"])
-async def get_my_achievements_endpoint(current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    achievements = await get_user_achievements_service(db, current_user.id)
-    return achievements
+# @api_router.get("/achievements/me", response_model=UserAchievements, tags=["Achievements"])
+# async def get_my_achievements_endpoint(current_user = Depends(get_current_user)):
+#     achievements = await get_user_achievements_service(current_user['id'])
+#     return achievements
 
 # --- Rutas Públicas de Perfil ---
 
@@ -435,11 +464,11 @@ async def get_user_details_endpoint(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return UserResponse(**user)
 
-@api_router.get("/achievements/user/{user_id}", response_model=UserAchievements, tags=["Achievements"])
-async def get_user_achievements_endpoint(user_id: str, db: Session = Depends(get_db)):
-    """Obtiene los logros y el progreso de un usuario específico."""
-    achievements = await get_user_achievements_service(db, user_id)
-    return achievements
+# @api_router.get("/achievements/user/{user_id}", response_model=UserAchievements, tags=["Achievements"])
+# async def get_user_achievements_endpoint(user_id: str):
+#     """Obtiene los logros y el progreso de un usuario específico."""
+#     achievements = await get_user_achievements_service(user_id)
+#     return achievements
 
 @api_router.get("/matches/history/user/{user_id}", response_model=List[MatchResponse], tags=["Matches"])
 async def get_user_match_history_endpoint(user_id: str):
@@ -533,23 +562,24 @@ app.include_router(api_router)
 @app.on_event("startup")
 async def on_startup():
     logging.info("Starting up application...")
-    await create_tables()
-    logging.info("Database tables checked/created.")
-    
-    # Crear usuario admin si no existe
-    async with AsyncSessionLocal() as db:
-        res = await db.execute(select(UserDB).where(UserDB.username == "admin"))
-        if not res.scalar_one_or_none():
-            admin = UserDB(
-                id=str(uuid.uuid4()),
-                username="admin",
-                password_hash=hash_password("adminpassword"),
-                is_admin=True,
-                is_active=True
-            )
-            db.add(admin)
-            await db.commit()
-            logging.info("Default admin user created.")
+    # Verificar si el usuario admin existe y crearlo si no
+    users_ref = get_db_ref('users')
+    admin_query = users_ref.order_by_child('username').equal_to('admin').get()
+    if not admin_query:
+        admin_id = str(uuid.uuid4())
+        admin_data = {
+            "id": admin_id,
+            "username": "admin",
+            "password_hash": hash_password("adminpassword"),
+            "elo_rating": 1200.0,
+            "matches_played": 0,
+            "matches_won": 0,
+            "is_admin": True,
+            "is_active": True,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        users_ref.child(admin_id).set(admin_data)
+        logging.info("Default admin user created.")
 
 @app.get("/", tags=["Root"])
 async def root():
