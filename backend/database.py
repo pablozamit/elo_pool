@@ -1,75 +1,28 @@
-from sqlalchemy import create_engine, Column, String, Float, Integer, Boolean, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+import firebase_admin
+from firebase_admin import credentials, db
 import os
+import json
 
-# --- CORRECCIÓN AQUÍ ---
-# Se ha reemplazado la URL de SQLite por la de Supabase (PostgreSQL).
-# Se usa 'postgresql+asyncpg' para la conexión asíncrona con FastAPI.
-# La contraseña ha sido insertada como me pediste.
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://postgres:2gWXbNqaI3iyskRM@db.jawsgnechppephcpllav.supabase.co:5432/postgres")
+# Cargar las credenciales de Firebase desde una variable de entorno
+firebase_service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
 
-# Create async engine
-engine = create_async_engine(DATABASE_URL, echo=True)
+if firebase_service_account_json:
+    try:
+        cred_json = json.loads(firebase_service_account_json)
+        cred = credentials.Certificate(cred_json)
+        
+        # Verificar si la app ya está inicializada para evitar errores
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred, {
+                'databaseURL': f"https://{cred_json.get('project_id')}.firebaseio.com"
+            })
+    except json.JSONDecodeError:
+        print("Error: La variable de entorno FIREBASE_SERVICE_ACCOUNT no es un JSON válido.")
+    except Exception as e:
+        print(f"Error al inicializar Firebase: {e}")
 
-# Create async session
-AsyncSessionLocal = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
-
-# Base class for models
-Base = declarative_base()
-
-# Database Models
-class UserDB(Base):
-    __tablename__ = "users"
-    
-    id = Column(String, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
-    password_hash = Column(String, nullable=False)
-    elo_rating = Column(Float, default=1200.0)
-    matches_played = Column(Integer, default=0)
-    matches_won = Column(Integer, default=0)
-    is_admin = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class MatchDB(Base):
-    __tablename__ = "matches"
-    
-    id = Column(String, primary_key=True)
-    player1_id = Column(String, nullable=False)
-    player2_id = Column(String, nullable=False)
-    player1_username = Column(String, nullable=False)
-    player2_username = Column(String, nullable=False)
-    match_type = Column(String, nullable=False)
-    result = Column(String, nullable=False)
-    winner_id = Column(String, nullable=False)
-    status = Column(String, default="pending")
-    player1_elo_before = Column(Float, nullable=False)
-    player2_elo_before = Column(Float, nullable=False)
-    player1_elo_after = Column(Float, nullable=True)
-    player2_elo_after = Column(Float, nullable=True)
-    submitted_by = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    confirmed_at = Column(DateTime, nullable=True)
-
-class UserAchievementDB(Base):
-    __tablename__ = "user_achievements"
-    
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=False)
-    achievement_id = Column(String, nullable=False)
-    earned_at = Column(DateTime, default=datetime.utcnow)
-    progress = Column(Integer, default=0)
-
-# Database functions
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
-
-async def create_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+def get_db_ref(path: str):
+    """
+    Devuelve una referencia a una ruta específica en la Realtime Database.
+    """
+    return db.reference(path)
