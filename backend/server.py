@@ -11,9 +11,10 @@ from jose import jwt, JWTError
 from passlib.context import CryptContext
 from enum import Enum
 # Importaciones de la base de datos y servicios
+from firebase_admin import db
 from .database import get_db_ref
-# from .achievement_service import check_achievements_after_match, get_user_achievements as get_user_achievements_service
-# from .achievements import UserAchievements
+from .achievement_service import check_achievements_after_match, get_user_achievements as get_user_achievements_service
+from .achievements import UserAchievements
 
 # --- Configuración Inicial ---
 JWT_SECRET = os.environ.get("JWT_SECRET", "clave_super_secreta_de_al_menos_32_caracteres_aqui")
@@ -360,11 +361,11 @@ async def confirm_match_endpoint(match_id: str, current_user = Depends(get_curre
     match_ref.update(match_updates)
 
     # Check achievements
-    # try:
-    #     await check_achievements_after_match(winner_id)
-    #     await check_achievements_after_match(loser_id)
-    # except Exception as e:
-    #     logging.error(f"Error checking achievements: {e}")
+    try:
+        await check_achievements_after_match(winner_id)
+        await check_achievements_after_match(loser_id)
+    except Exception as e:
+        logging.error(f"Error checking achievements: {e}")
 
     return {"message": "Match confirmed and ELO updated."}
 
@@ -448,10 +449,10 @@ async def get_elo_preview_endpoint(data: EloPreviewRequest):
     return EloPreviewResponse(user=user_preview, opponent=opponent_preview)
 
 # -- Logros --
-# @api_router.get("/achievements/me", response_model=UserAchievements, tags=["Achievements"])
-# async def get_my_achievements_endpoint(current_user = Depends(get_current_user)):
-#     achievements = await get_user_achievements_service(current_user['id'])
-#     return achievements
+@api_router.get("/achievements/me", response_model=UserAchievements, tags=["Achievements"])
+async def get_my_achievements_endpoint(current_user = Depends(get_current_user)):
+    achievements = await get_user_achievements_service(current_user['id'])
+    return achievements
 
 # --- Rutas Públicas de Perfil ---
 
@@ -464,11 +465,11 @@ async def get_user_details_endpoint(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return UserResponse(**user)
 
-# @api_router.get("/achievements/user/{user_id}", response_model=UserAchievements, tags=["Achievements"])
-# async def get_user_achievements_endpoint(user_id: str):
-#     """Obtiene los logros y el progreso de un usuario específico."""
-#     achievements = await get_user_achievements_service(user_id)
-#     return achievements
+@api_router.get("/achievements/user/{user_id}", response_model=UserAchievements, tags=["Achievements"])
+async def get_user_achievements_endpoint(user_id: str):
+    """Obtiene los logros y el progreso de un usuario específico."""
+    achievements = await get_user_achievements_service(user_id)
+    return achievements
 
 @api_router.get("/matches/history/user/{user_id}", response_model=List[MatchResponse], tags=["Matches"])
 async def get_user_match_history_endpoint(user_id: str):
@@ -555,6 +556,48 @@ async def admin_delete_user_endpoint(user_id: str, admin_user = Depends(get_curr
         
     user_ref.delete()
     return {"message": "User deleted successfully"}
+
+@api_router.post("/admin/matches/{match_id}/rollback", tags=["Admin"])
+async def admin_rollback_match_endpoint(match_id: str, admin_user=Depends(get_current_admin_user)):
+    """
+    Revierte un partido confirmado, restaurando el ELO y las estadísticas de los jugadores
+    de forma atómica usando una actualización multi-ruta.
+    """
+    match_ref = get_db_ref(f'matches/{match_id}')
+    match = match_ref.get()
+
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if match.get('status') != 'confirmed':
+        raise HTTPException(status_code=400, detail="Only confirmed matches can be rolled back")
+    if 'elo_snapshot' not in match:
+        raise HTTPException(status_code=400, detail="Match has no ELO snapshot to restore")
+
+    winner_id = match['winner_id']
+    loser_id = match['player2_id'] if winner_id == match['player1_id'] else match['player1_id']
+
+    winner_ref = get_db_ref(f"users/{winner_id}")
+    loser_ref = get_db_ref(f"users/{loser_id}")
+
+    winner_data = winner_ref.get()
+    loser_data = loser_ref.get()
+
+    # Construir la actualización multi-ruta
+    updates = {
+        f"users/{winner_id}/elo_rating": match['elo_snapshot']['before']['winner_elo'],
+        f"users/{winner_id}/matches_played": winner_data.get('matches_played', 0) - 1,
+        f"users/{winner_id}/matches_won": winner_data.get('matches_won', 0) - 1,
+        f"users/{loser_id}/elo_rating": match['elo_snapshot']['before']['loser_elo'],
+        f"users/{loser_id}/matches_played": loser_data.get('matches_played', 0) - 1,
+        f"matches/{match_id}/status": "cancelled",
+    }
+
+    try:
+        db.reference('/').update(updates)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to rollback match: {e}")
+
+    return {"message": f"Match {match_id} has been rolled back successfully."}
 
 # -- Punto de Entrada y Eventos --
 app.include_router(api_router)
