@@ -1,31 +1,38 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List
 import uuid
 
-from sqlalchemy import select, or_, and_, func
-from sqlalchemy.orm import Session
-
+from .database import get_db_ref
 from .achievements import (
-    AchievementSystem, Badge, UserBadge, UserAchievements,
-    BADGES_CATALOG, get_user_title
+    AchievementSystem,
+    Badge,
+    UserBadge,
+    UserAchievements,
+    BADGES_CATALOG,
+    get_user_title,
 )
-from .database import UserDB, MatchDB, UserAchievementDB
 
 achievement_system = AchievementSystem()
 
-async def get_user_achievements(db: Session, user_id: str) -> UserAchievements:
-    result = await db.execute(
-        select(UserAchievementDB).where(UserAchievementDB.user_id == user_id)
-    )
-    rows = result.scalars().all()
+async def get_user_achievements(user_id: str) -> UserAchievements:
+    """
+    Recupera los logros de un usuario desde Firebase.
+    """
+    achievements_ref = get_db_ref(f"user_achievements/{user_id}")
+    achievements_data = achievements_ref.get()
+
+    if not achievements_data:
+        achievements_data = {}
+
+    experience = achievements_data.pop("total_experience", 0)
 
     badges = [
         UserBadge(
-            badge_id=row.achievement_id,
-            earned_at=row.earned_at,
-            progress=float(row.progress),
+            badge_id=badge_id,
+            earned_at=badge_info["earned_at"],
+            progress=float(badge_info.get("progress", 100.0)),
         )
-        for row in rows
+        for badge_id, badge_info in achievements_data.items()
     ]
 
     total_points = sum(
@@ -33,7 +40,6 @@ async def get_user_achievements(db: Session, user_id: str) -> UserAchievements:
         for b in badges
         if b.badge_id in achievement_system.badges
     )
-    experience = total_points
     level, next_level_exp = achievement_system.calculate_level(experience)
 
     return UserAchievements(
@@ -45,35 +51,50 @@ async def get_user_achievements(db: Session, user_id: str) -> UserAchievements:
         next_level_exp=next_level_exp,
     )
 
-async def calculate_user_stats(db: Session, user_id: str) -> Dict:
-    result = await db.execute(select(UserDB).where(UserDB.id == user_id))
-    user = result.scalar_one_or_none()
+
+async def calculate_user_stats(user_id: str) -> Dict:
+    """
+    Calcula las estadísticas de un usuario a partir de los datos en Firebase.
+    """
+    user_ref = get_db_ref(f"users/{user_id}")
+    user = user_ref.get()
     if not user:
         return {}
 
     stats = {
-        "matches_played": user.matches_played,
-        "matches_won": user.matches_won,
-        "elo_rating": user.elo_rating,
-        "created_at": user.created_at,
+        "matches_played": user.get("matches_played", 0),
+        "matches_won": user.get("matches_won", 0),
+        "elo_rating": user.get("elo_rating", 1200),
+        "created_at": user.get("created_at"),
     }
 
-    result = await db.execute(
-        select(MatchDB).where(
-            and_(
-                or_(MatchDB.player1_id == user_id, MatchDB.player2_id == user_id),
-                MatchDB.status == "confirmed",
-            )
-        )
+    matches_ref = get_db_ref("matches")
+
+    # Realizar dos consultas separadas para las estadísticas del usuario
+    query1 = matches_ref.order_by_child('player1_id').equal_to(user_id).get()
+    query2 = matches_ref.order_by_child('player2_id').equal_to(user_id).get()
+
+    user_matches = []
+    if query1:
+        user_matches.extend(list(query1.values()))
+    if query2:
+        user_matches.extend(list(query2.values()))
+
+    user_matches = [m for m in user_matches if m.get('status') == 'confirmed']
+
+    stats["total_matches"] = len(user_matches)
+    stats["total_wins"] = len(
+        [m for m in user_matches if m.get("winner_id") == user_id]
     )
-    matches = result.scalars().all()
-    stats["total_matches"] = len(matches)
-    stats["total_wins"] = len([m for m in matches if m.winner_id == user_id])
 
     current_streak = 0
     max_streak = 0
-    for m in sorted(matches, key=lambda x: x.confirmed_at or x.created_at):
-        if m.winner_id == user_id:
+    # Ordenar partidos por fecha de confirmación
+    sorted_matches = sorted(
+        user_matches, key=lambda x: x.get("confirmed_at") or x.get("created_at")
+    )
+    for m in sorted_matches:
+        if m.get("winner_id") == user_id:
             current_streak += 1
             max_streak = max(max_streak, current_streak)
         else:
@@ -81,34 +102,39 @@ async def calculate_user_stats(db: Session, user_id: str) -> Dict:
     stats["win_streak"] = current_streak
     stats["max_win_streak"] = max_streak
 
-    for m in matches:
-        key_played = f"{m.match_type}_played"
-        stats[key_played] = stats.get(key_played, 0) + 1
-        if m.winner_id == user_id:
-            key_wins = f"{m.match_type}_wins"
-            stats[key_wins] = stats.get(key_wins, 0) + 1
+    for m in user_matches:
+        match_type = m.get("match_type")
+        if match_type:
+            key_played = f"{match_type}_played"
+            stats[key_played] = stats.get(key_played, 0) + 1
+            if m.get("winner_id") == user_id:
+                key_wins = f"{match_type}_wins"
+                stats[key_wins] = stats.get(key_wins, 0) + 1
 
+    # Lógica de liderazgo (consulta ineficiente aislada)
+    all_confirmed_matches = matches_ref.order_by_child('status').equal_to('confirmed').get()
     now = datetime.utcnow()
+    from collections import Counter
+    from datetime import timedelta
 
-    async def is_leader(start_date: datetime) -> bool:
-        result = await db.execute(
-            select(MatchDB.winner_id, func.count(MatchDB.id))
-            .where(
-                and_(
-                    MatchDB.status == "confirmed",
-                    MatchDB.confirmed_at >= start_date,
-                    MatchDB.confirmed_at < now,
-                )
-            )
-            .group_by(MatchDB.winner_id)
-            .order_by(func.count(MatchDB.id).desc())
-        )
-        rows = result.all()
-        if not rows:
+    def is_leader(start_date: datetime) -> bool:
+        relevant_matches = [
+            m for m in (all_confirmed_matches or {}).values()
+            if m.get("confirmed_at") and datetime.fromisoformat(m["confirmed_at"]) >= start_date
+        ]
+
+        if not relevant_matches:
             return False
-        max_wins = rows[0][1]
-        leaders = [r[0] for r in rows if r[1] == max_wins and r[1] > 0]
-        return user_id in leaders
+
+        winner_ids = [m["winner_id"] for m in relevant_matches]
+        win_counts = Counter(winner_ids)
+
+        if not win_counts:
+            return False
+
+        max_wins = max(win_counts.values())
+
+        return win_counts.get(user_id, 0) == max_wins and max_wins > 0
 
     start_day = datetime(now.year, now.month, now.day)
     start_week = start_day - timedelta(days=start_day.weekday())
@@ -117,62 +143,67 @@ async def calculate_user_stats(db: Session, user_id: str) -> Dict:
     start_quarter = datetime(now.year, quarter_month, 1)
     start_year = datetime(now.year, 1, 1)
 
-    stats["daily_wins_leader"] = await is_leader(start_day)
-    stats["weekly_wins_leader"] = await is_leader(start_week)
-    stats["monthly_wins_leader"] = await is_leader(start_month)
-    stats["quarter_wins_leader"] = await is_leader(start_quarter)
-    stats["yearly_wins_leader"] = await is_leader(start_year)
+    stats["daily_wins_leader"] = is_leader(start_day)
+    stats["weekly_wins_leader"] = is_leader(start_week)
+    stats["monthly_wins_leader"] = is_leader(start_month)
+    stats["quarter_wins_leader"] = is_leader(start_quarter)
+    stats["yearly_wins_leader"] = is_leader(start_year)
 
     return stats
 
-async def check_user_achievements(db, user_id: str) -> Dict:
-    user_stats = await calculate_user_stats(db, user_id)
-    user_achievements = await get_user_achievements(db, user_id)
-    earned_badge_ids = [ub.badge_id for ub in user_achievements.badges]
+
+async def check_user_achievements(user_id: str) -> Dict:
+    """
+    Verifica si un usuario ha desbloqueado nuevos logros.
+    """
+    user_stats = await calculate_user_stats(user_id)
+    user_achievements = await get_user_achievements(user_id)
+    earned_badge_ids = {ub.badge_id for ub in user_achievements.badges}
 
     new_badges: List[Badge] = []
     total_new_points = 0
+
     for badge in BADGES_CATALOG:
         if badge.id not in earned_badge_ids:
             if achievement_system.check_badge_requirements(badge, user_stats):
-                new_badge = UserBadge(
-                    badge_id=badge.id,
-                    earned_at=datetime.utcnow(),
-                    progress=100.0,
-                )
-                user_achievements.badges.append(new_badge)
+                new_badge_data = {
+                    "badge_id": badge.id,
+                    "earned_at": datetime.utcnow().isoformat(),
+                    "progress": 100.0,
+                }
+
+                # Guardar el nuevo logro en Firebase
+                achievements_ref = get_db_ref(f"user_achievements/{user_id}/{badge.id}")
+                achievements_ref.set(new_badge_data)
+
                 new_badges.append(badge)
                 total_new_points += badge.points
 
-    user_achievements.total_points += total_new_points
-    user_achievements.experience += total_new_points
-    new_level, next_level_exp = achievement_system.calculate_level(
-        user_achievements.experience
-    )
-    old_level = user_achievements.level
-    user_achievements.level = new_level
-    user_achievements.next_level_exp = next_level_exp
-
+    level_up_info = {}
     if new_badges:
-        for badge in new_badges:
-            db.add(
-                UserAchievementDB(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    achievement_id=badge.id,
-                    earned_at=datetime.utcnow(),
-                    progress=100,
-                )
-            )
-        await db.flush()
+        old_level = user_achievements.level
+        new_total_points = user_achievements.total_points + total_new_points
+        new_level, _ = achievement_system.calculate_level(new_total_points)
+
+        if new_level > old_level:
+            level_up_info = {
+                "level_up": True,
+                "new_level": new_level,
+                "new_title": get_user_title(new_level),
+            }
+
+        # Guardar la nueva experiencia total
+        get_db_ref(f"user_achievements/{user_id}").update({"total_experience": new_total_points})
 
     return {
         "new_badges": new_badges,
         "total_new_points": total_new_points,
-        "level_up": new_level > old_level,
-        "new_level": new_level,
-        "new_title": get_user_title(new_level) if new_level > old_level else None,
+        **level_up_info,
     }
 
-async def check_achievements_after_match(db, user_id: str):
-    return await check_user_achievements(db, user_id)
+
+async def check_achievements_after_match(user_id: str):
+    """
+    Función de conveniencia para ser llamada después de un partido.
+    """
+    return await check_user_achievements(user_id)
