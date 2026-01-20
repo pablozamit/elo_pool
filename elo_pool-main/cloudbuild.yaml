@@ -1,0 +1,30 @@
+steps:
+# Paso 1: Construir la imagen del contenedor de tu backend
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/elopool-backend:$COMMIT_SHA', './backend']
+  dir: '.' # Le decimos que empiece desde la raíz del repositorio
+
+# Paso 2: Subir la imagen a Google Container Registry (un almacén de imágenes)
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/elopool-backend:$COMMIT_SHA']
+
+# Paso 3: Desplegar la imagen en Google Cloud Run para que se ejecute como un servidor
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    - 'run'
+    - 'deploy'
+    - 'elopool-backend' # El nombre que le daremos a tu servicio de backend
+    - '--image=gcr.io/$PROJECT_ID/elopool-backend:$COMMIT_SHA'
+    - '--region=europe-west9' # La región de tu base de datos (París)
+    - '--platform=managed'
+    - '--allow-unauthenticated' # Permite que tu frontend llame al backend
+    # Aquí están tus secretos, que se inyectan de forma segura
+    - '--update-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest'
+    - '--add-cloudsql-instances=elopool-466313:europe-west9:elo-pool-db' # Conecta con tu base de datos
+
+images:
+- 'gcr.io/$PROJECT_ID/elopool-backend:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
