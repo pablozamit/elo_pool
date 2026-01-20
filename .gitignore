@@ -80,3 +80,10 @@ agenthub/agents/youtube/db
 android-sdk/
 .env
 !frontend/.env
+
+# Frontend environment files (contains API keys)
+frontend/.env
+frontend/.env.local
+
+# Local utility scripts
+push.bat
