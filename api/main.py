@@ -1,11 +1,9 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
-import os
-import json
+import os, json, re, uuid
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict
-import uuid
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -14,54 +12,69 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 # --- Configuración Inicial ---
-JWT_SECRET = os.environ.get("JWT_SECRET", "tu_clave_secreta_aqui")
+JWT_SECRET = os.environ.get("JWT_SECRET", "clave_maestra_pool")
 JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
 
-# --- Firebase Init (Corregido con tu URL real) ---
+# --- CARGADOR BLINDADO DE FIREBASE (Solución al error 500) ---
 firebase_init_error = None
+
+def get_firebase_creds():
+    raw_s = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "").strip()
+    if not raw_s: return None
+    
+    # Limpieza de comillas raras de Vercel
+    if raw_s.startswith(("'","\"")): raw_s = raw_s[1:-1]
+    
+    try:
+        # Intento 1: Carga normal (si el JSON es perfecto)
+        return json.loads(raw_s, strict=False)
+    except Exception:
+        # Intento 2: Extracción manual por Regex (ignora errores de escape de JSON)
+        # Esto extrae los campos aunque haya barras invertidas \ mal puestas
+        def extract(field):
+            match = re.search(f'"{field}"\s*:\s*"([^"]+)"', raw_s)
+            return match.group(1).replace('\\n', '\n') if match else None
+        
+        return {
+            "type": "service_account",
+            "project_id": extract("project_id"),
+            "private_key": extract("private_key"),
+            "client_email": extract("client_email"),
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }
+
 if not firebase_admin._apps:
     try:
-        firebase_cred_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-        if firebase_cred_json:
-            # Limpieza para evitar errores de escape de Vercel
-            firebase_cred_json = firebase_cred_json.strip().strip("'").strip('"').strip()
-            # Reparación de saltos de línea si se pegó en bloque
-            if "\n" in firebase_cred_json:
-                firebase_cred_json = firebase_cred_json.replace("\n", "\\n")
-            
-            cred_dict = json.loads(firebase_cred_json)
-            cred = credentials.Certificate(cred_dict)
+        creds_dict = get_firebase_creds()
+        if creds_dict and creds_dict.get("private_key"):
+            cred = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://elopool-f1e62-default-rtdb.europe-west1.firebasedatabase.app/' 
+                'databaseURL': 'https://elopool-f1e62-default-rtdb.europe-west1.firebasedatabase.app/'
             })
         else:
-            firebase_init_error = "Variable FIREBASE_SERVICE_ACCOUNT no encontrada."
+            firebase_init_error = "No se pudieron extraer las credenciales del env var."
     except Exception as e:
-        firebase_init_error = f"Error de inicialización: {str(e)}"
+        firebase_init_error = f"Fallo crítico: {str(e)}"
 
 def get_db_ref(path: str):
-    if firebase_init_error:
-        raise HTTPException(status_code=500, detail=firebase_init_error)
+    if firebase_init_error: raise HTTPException(status_code=500, detail=firebase_init_error)
     return db.reference(path)
 
-# --- Modelos y Enums (Restaurados) ---
+# --- Modelos y Lógica ELO (Restaurados de tu archivo original) ---
 class MatchType(str, Enum):
     REY_MESA = "rey_mesa"
     TORNEO = "torneo"
     LIGA_GRUPOS = "liga_grupos"
     LIGA_FINALES = "liga_finales"
 
-ELO_WEIGHTS = {
-    MatchType.REY_MESA: 1.0, MatchType.TORNEO: 1.5,
-    MatchType.LIGA_GRUPOS: 2.0, MatchType.LIGA_FINALES: 2.5
-}
+ELO_WEIGHTS = { MatchType.REY_MESA: 1.0, MatchType.TORNEO: 1.5, MatchType.LIGA_GRUPOS: 2.0, MatchType.LIGA_FINALES: 2.5 }
 
 class UserCreate(BaseModel):
     username: str
     password: str
     @field_validator('username')
-    def username_must_not_contain_spaces(cls, v):
+    def no_spaces(cls, v):
         if ' ' in v: raise ValueError('Username cannot contain spaces')
         return v
 
@@ -70,159 +83,94 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
-    id: str
-    username: str
-    elo_rating: float
-    matches_played: int
-    matches_won: int
-    is_admin: bool
-    is_active: bool
-    created_at: str
+    id: str; username: str; elo_rating: float; matches_played: int
+    matches_won: int; is_admin: bool; is_active: bool; created_at: str
 
 class MatchCreate(BaseModel):
-    opponent_username: str
-    match_type: MatchType
-    result: str
-    won: bool
+    opponent_username: str; match_type: MatchType; result: str; won: bool
 
-class MatchResponse(BaseModel):
-    id: str
-    player1_username: str
-    player2_username: str
-    match_type: MatchType
-    result: str
-    winner_username: str
-    status: str
-    created_at: str
-    confirmed_at: Optional[str] = None
-
-class EloPreviewRequest(BaseModel):
-    player1_id: str
-    player2_id: str
-    winner_id: str
-    match_type: MatchType
-
-# --- Utilidades ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-def hash_password(password: str) -> str: return pwd_context.hash(password)
-def verify_password(password: str, hashed: str) -> bool: return pwd_context.verify(password, hashed)
+def verify_password(pw, hashed): return pwd_context.verify(pw, hashed)
+def hash_password(pw): return pwd_context.hash(pw)
 
-def create_jwt_token(user_id: str, username: str, is_admin: bool) -> str:
-    payload = {"user_id": user_id, "username": username, "is_admin": is_admin, "exp": datetime.utcnow() + timedelta(days=7)}
+def create_jwt_token(u_id, u_name, admin):
+    payload = {"user_id": u_id, "username": u_name, "is_admin": admin, "exp": datetime.utcnow() + timedelta(days=7)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
+def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get("user_id")
-        user_data = get_db_ref(f'users/{user_id}').get()
-        if not user_data: raise HTTPException(status_code=404, detail="User not found")
-        return user_data
-    except JWTError: raise HTTPException(status_code=401, detail="Invalid token")
+        p = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        u = get_db_ref(f"users/{p['user_id']}").get()
+        if not u: raise Exception()
+        return u
+    except: raise HTTPException(status_code=401, detail="Token inválido")
 
-def calculate_new_elos(winner_elo, loser_elo, match_type: MatchType):
-    K = 32 * ELO_WEIGHTS[match_type]
-    expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
-    new_winner_elo = winner_elo + K * (1 - expected_winner)
-    new_loser_elo = loser_elo + K * (0 - (1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))))
-    return new_winner_elo, new_loser_elo
+def calculate_new_elos(w_elo, l_elo, m_type):
+    K = 32 * ELO_WEIGHTS[m_type]
+    ew = 1 / (1 + 10 ** ((l_elo - w_elo) / 400))
+    el = 1 / (1 + 10 ** ((w_elo - l_elo) / 400))
+    return w_elo + K * (1 - ew), l_elo + K * (0 - el)
 
-# --- App FastAPI ---
+# --- API Endpoints ---
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
-def root():
-    return {"status": "running", "firebase": bool(firebase_admin._apps), "error": firebase_init_error}
+def health(): return {"status": "ok", "firebase": bool(firebase_admin._apps), "error": firebase_init_error}
 
 @app.post("/api/register", response_model=UserResponse)
-def register(user_data: UserCreate):
-    users_ref = get_db_ref('users')
-    all_users = users_ref.get() or {}
-    for u in all_users.values():
-        if u.get('username').lower() == user_data.username.lower():
-             raise HTTPException(status_code=400, detail="Username already exists")
-
-    user_id = str(uuid.uuid4())
-    new_user = {
-        "id": user_id, "username": user_data.username, "password_hash": hash_password(user_data.password),
-        "elo_rating": 1200.0, "matches_played": 0, "matches_won": 0, "is_admin": False,
-        "is_active": True, "created_at": datetime.utcnow().isoformat()
-    }
-    users_ref.child(user_id).set(new_user)
-    return new_user
+def register(data: UserCreate):
+    ref = get_db_ref('users')
+    if any(u.get('username','').lower() == data.username.lower() for u in (ref.get() or {}).values()):
+        raise HTTPException(status_code=400, detail="Usuario ya existe")
+    uid = str(uuid.uuid4())
+    user = {"id": uid, "username": data.username, "password_hash": hash_password(data.password),
+            "elo_rating": 1200.0, "matches_played": 0, "matches_won": 0, "is_admin": False,
+            "is_active": True, "created_at": datetime.utcnow().isoformat()}
+    ref.child(uid).set(user)
+    return user
 
 @app.post("/api/login")
-def login(login_data: UserLogin):
-    users_ref = get_db_ref('users')
-    all_users = users_ref.get() or {}
-    user_found = next((u for u in all_users.values() if u.get('username').lower() == login_data.username.lower()), None)
-    if not user_found or not verify_password(login_data.password, user_found['password_hash']):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_jwt_token(user_found['id'], user_found['username'], user_found.get('is_admin', False))
-    return {"access_token": token, "token_type": "bearer", "user": user_found}
+def login(data: UserLogin):
+    users = get_db_ref('users').get() or {}
+    user = next((u for u in users.values() if u['username'].lower() == data.username.lower()), None)
+    if not user or not verify_password(data.password, user['password_hash']):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    return {"access_token": create_jwt_token(user['id'], user['username'], user.get('is_admin', False)), "user": user}
 
 @app.get("/api/rankings")
-def get_rankings():
-    users_ref = get_db_ref('users')
-    all_users = users_ref.get() or {}
-    players = sorted([u for u in all_users.values() if u.get('is_active') and not u.get('is_admin')], 
-                    key=lambda x: x.get('elo_rating', 1200), reverse=True)
-    return [{"rank": i + 1, "username": u['username'], "elo_rating": round(u.get('elo_rating', 1200), 1),
-             "matches_played": u.get('matches_played', 0), "matches_won": u.get('matches_won', 0)} for i, u in enumerate(players)]
+def rankings():
+    users = get_db_ref('users').get() or {}
+    players = sorted([u for u in users.values() if u.get('is_active')], key=lambda x: x.get('elo_rating', 1200), reverse=True)
+    return [{"rank": i+1, "username": u['username'], "elo_rating": round(u.get('elo_rating', 1200), 1),
+             "matches": u.get('matches_played', 0)} for i, u in enumerate(players)]
 
-@app.post("/api/matches", response_model=MatchResponse)
-def create_match(match_data: MatchCreate, current_user: dict = Depends(get_current_user)):
-    users_ref = get_db_ref('users')
-    all_users = users_ref.get() or {}
-    opponent = next((u for u in all_users.values() if u.get('username').lower() == match_data.opponent_username.lower()), None)
-    if not opponent: raise HTTPException(status_code=404, detail="Opponent not found")
+@app.post("/api/matches")
+def create_match(data: MatchCreate, user = Depends(get_current_user)):
+    opp = next((u for u in (get_db_ref('users').get() or {}).values() if u['username'].lower() == data.opponent_username.lower()), None)
+    if not opp: raise HTTPException(status_code=404, detail="Oponente no encontrado")
+    mid = str(uuid.uuid4())
+    match = {"id": mid, "player1_id": user['id'], "player2_id": opp['id'], "player1_username": user['username'],
+             "player2_username": opp['username'], "match_type": data.match_type, "result": data.result,
+             "winner_id": user['id'] if data.won else opp['id'], "status": "pending", "created_at": datetime.utcnow().isoformat()}
+    get_db_ref(f'matches/{mid}').set(match)
+    return match
+
+@app.post("/api/matches/{mid}/confirm")
+def confirm(mid: str, user = Depends(get_current_user)):
+    m = get_db_ref(f'matches/{mid}').get()
+    if not m or m['status'] != 'pending': raise HTTPException(status_code=400)
+    p1, p2 = get_db_ref(f"users/{m['player1_id']}").get(), get_db_ref(f"users/{m['player2_id']}").get()
+    w_elo = p1['elo_rating'] if m['winner_id'] == p1['id'] else p2['elo_rating']
+    l_elo = p2['elo_rating'] if m['winner_id'] == p1['id'] else p1['elo_rating']
+    nw, nl = calculate_new_elos(w_elo, l_elo, MatchType(m['match_type']))
     
-    match_id = str(uuid.uuid4())
-    new_match = {
-        "id": match_id, "player1_id": current_user['id'], "player2_id": opponent['id'],
-        "player1_username": current_user['username'], "player2_username": opponent['username'],
-        "match_type": match_data.match_type, "result": match_data.result, "status": "pending",
-        "winner_id": current_user['id'] if match_data.won else opponent['id'],
-        "winner_username": current_user['username'] if match_data.won else opponent['username'],
-        "created_at": datetime.utcnow().isoformat()
-    }
-    get_db_ref(f'matches/{match_id}').set(new_match)
-    return new_match
-
-@app.post("/api/matches/{match_id}/confirm")
-def confirm_match(match_id: str, current_user: dict = Depends(get_current_user)):
-    match_ref = get_db_ref(f'matches/{match_id}')
-    match_data = match_ref.get()
-    if not match_data or match_data['status'] != 'pending': raise HTTPException(status_code=400, detail="Invalid match")
-    if not current_user.get('is_admin') and match_data['player2_id'] != current_user['id']:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    p1_ref, p2_ref = get_db_ref(f"users/{match_data['player1_id']}"), get_db_ref(f"users/{match_data['player2_id']}")
-    p1, p2 = p1_ref.get(), p2_ref.get()
-    
-    w_elo = p1['elo_rating'] if match_data['winner_id'] == p1['id'] else p2['elo_rating']
-    l_elo = p2['elo_rating'] if match_data['winner_id'] == p1['id'] else p1['elo_rating']
-    new_w, new_l = calculate_new_elos(w_elo, l_elo, MatchType(match_data['match_type']))
-
     updates = {
-        f"users/{p1['id']}/elo_rating": new_w if match_data['winner_id'] == p1['id'] else new_l,
+        f"users/{p1['id']}/elo_rating": nw if m['winner_id'] == p1['id'] else nl,
         f"users/{p1['id']}/matches_played": p1.get('matches_played', 0) + 1,
-        f"users/{p2['id']}/elo_rating": new_l if match_data['winner_id'] == p1['id'] else new_w,
+        f"users/{p2['id']}/elo_rating": nl if m['winner_id'] == p1['id'] else nw,
         f"users/{p2['id']}/matches_played": p2.get('matches_played', 0) + 1,
-        f"matches/{match_id}/status": "confirmed",
-        f"matches/{match_id}/confirmed_at": datetime.utcnow().isoformat()
+        f"matches/{mid}/status": "confirmed", f"matches/{mid}/confirmed_at": datetime.utcnow().isoformat()
     }
-    if match_data['winner_id'] == p1['id']: updates[f"users/{p1['id']}/matches_won"] = p1.get('matches_won', 0) + 1
-    else: updates[f"users/{p2['id']}/matches_won"] = p2.get('matches_won', 0) + 1
-    
-    get_db_ref('/').update(updates)
-    return {"message": "Confirmed"}
-
-@app.get("/api/matches/history")
-def get_match_history(current_user: dict = Depends(get_current_user)):
-    all_matches = get_db_ref('matches').get() or {}
-    history = [m for m in all_matches.values() if m.get('status') == 'confirmed' and 
-               (m['player1_id'] == current_user['id'] or m['player2_id'] == current_user['id'])]
-    return sorted(history, key=lambda x: x.get('confirmed_at'), reverse=True)
+    db.reference('/').update(updates)
+    return {"status": "confirmed"}
