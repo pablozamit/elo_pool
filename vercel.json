@@ -1,7 +1,6 @@
 {
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
-  "installCommand": "pip install -r api/requirements.txt",
   "rewrites": [
     {
       "source": "/api/:path*",
