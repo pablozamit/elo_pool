@@ -26,10 +26,14 @@ try:
     if not firebase_admin._apps:
         firebase_cred_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
         if firebase_cred_json:
+            # Robust cleaning: remove surrounding quotes and whitespace
+            firebase_cred_json = firebase_cred_json.strip().strip("'").strip('"').strip()
+            
             firebase_cred_debug_info = f"Found env var ({len(firebase_cred_json)} chars)"
+            
             # Basic validation of JSON structure before loading
-            if not firebase_cred_json.strip().startswith('{'):
-                 firebase_init_error = "Env var does not start with '{'. possible copy-paste error."
+            if not firebase_cred_json.startswith('{'):
+                 firebase_init_error = "Env var does not start with '{' after cleaning. possible copy-paste error."
             else:
                 try:
                     cred_dict = json.loads(firebase_cred_json)

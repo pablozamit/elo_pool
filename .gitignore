@@ -88,3 +88,4 @@ frontend/.env.production
 
 # Local utility scripts
 push.bat
+.env*.local
