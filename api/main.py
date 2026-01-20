@@ -510,6 +510,3 @@ def user_to_response(user_data):
         "created_at": user_data.get('created_at', "")
     }
 
-# Para Vercel
-def handler(request):
-    return app(request)
