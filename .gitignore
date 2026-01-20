@@ -84,6 +84,7 @@ android-sdk/
 # Frontend environment files (contains API keys)
 frontend/.env
 frontend/.env.local
+frontend/.env.production
 
 # Local utility scripts
 push.bat
