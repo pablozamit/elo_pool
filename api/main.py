@@ -19,23 +19,39 @@ JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
 
 # --- Firebase Init ---
-# Verificamos si ya está inicializada para evitar errores en hot-reload de desarrollo
-if not firebase_admin._apps:
-    firebase_cred_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-    if firebase_cred_json:
-        try:
-            cred_dict = json.loads(firebase_cred_json)
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://elo-pool-default-rtdb.europe-west1.firebasedatabase.app/' 
-            })
-            print("🔥 Firebase inicializado con credenciales de entorno.")
-        except Exception as e:
-            print(f"❌ Error al inicializar Firebase: {e}")
-    else:
-        print("⚠️ ADVERTENCIA: Variable FIREBASE_SERVICE_ACCOUNT no encontrada.")
+firebase_init_error = None
+firebase_cred_debug_info = "Not checked"
+
+try:
+    if not firebase_admin._apps:
+        firebase_cred_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+        if firebase_cred_json:
+            firebase_cred_debug_info = f"Found env var ({len(firebase_cred_json)} chars)"
+            # Basic validation of JSON structure before loading
+            if not firebase_cred_json.strip().startswith('{'):
+                 firebase_init_error = "Env var does not start with '{'. possible copy-paste error."
+            else:
+                try:
+                    cred_dict = json.loads(firebase_cred_json)
+                    cred = credentials.Certificate(cred_dict)
+                    firebase_admin.initialize_app(cred, {
+                        'databaseURL': 'https://elo-pool-default-rtdb.europe-west1.firebasedatabase.app/' 
+                    })
+                    print("🔥 Firebase inicializado con credenciales de entorno.")
+                except json.JSONDecodeError as je:
+                    firebase_init_error = f"JSON Decode Error: {je}"
+                except Exception as e:
+                    firebase_init_error = f"Init Error: {e}"
+        else:
+            firebase_cred_debug_info = "Env var FIREBASE_SERVICE_ACCOUNT is missing/empty"
+            print("⚠️ ADVERTENCIA: Variable FIREBASE_SERVICE_ACCOUNT no encontrada.")
+except Exception as e:
+    firebase_init_error = f"Global Init Crash: {e}"
 
 def get_db_ref(path: str):
+    if firebase_init_error:
+        # If init failed, this calls will fail, but we want the app to start at least
+        print(f"Cannot get DB ref, init failed: {firebase_init_error}")
     return db.reference(path)
 
 # --- Modelos y Enums ---
@@ -182,16 +198,20 @@ def debug_firebase():
     status = {
         "firebase_initialized": bool(firebase_admin._apps),
         "env_var_present": bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT")),
+        "env_var_debug": firebase_cred_debug_info,
+        "init_error": firebase_init_error,
         "db_url": 'https://elo-pool-default-rtdb.europe-west1.firebasedatabase.app/' 
     }
     
     # Try to write and delete a timestamp to verify DB permissions
-    if status["firebase_initialized"]:
+    if status["firebase_initialized"] and not firebase_init_error:
         try:
             get_db_ref('debug_ping').set(datetime.utcnow().isoformat())
             status["write_test"] = "Success"
         except Exception as e:
             status["write_test"] = f"Failed: {str(e)}"
+    else:
+        status["write_test"] = "Skipped due to init failure"
             
     return status
 
