@@ -14,6 +14,8 @@ from enum import Enum
 import sqlite3
 import json
 from contextlib import asynccontextmanager
+import tempfile
+import traceback
 
 # JWT Configuration
 JWT_SECRET = os.environ.get("JWT_SECRET", "your_super_secret_key_here_change_in_production")
@@ -21,7 +23,7 @@ JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
 
 # Database path
-DB_PATH = "/tmp/billiard_club.db"
+DB_PATH = os.path.join(tempfile.gettempdir(), "billiard_club.db")
 
 # Match Types Enum
 class MatchType(str, Enum):
@@ -521,47 +523,53 @@ async def reject_match(match_id: str, current_user: User = Depends(get_current_u
         conn.close()
         raise HTTPException(status_code=400, detail="Match already processed")
     
-    cursor.execute("UPDATE matches SET status = 'rejected' WHERE id = ?", (match_id,))
+    cursor.execute("UPDATE matches SET status = 'rejected', confirmed_at = ? WHERE id = ?", 
+                   (datetime.utcnow().isoformat(), match_id))
     conn.commit()
     conn.close()
     
-    return {"message": "Match rejected"}
+    return {"message": "Match rejected successfully"}
 
 @app.get("/api/rankings")
 async def get_rankings():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT * FROM users 
-        WHERE is_admin = 0 
-        ORDER BY elo_rating DESC 
-        LIMIT 100
-    ''')
-    users = cursor.fetchall()
-    conn.close()
-    
-    rankings = []
-    for i, user in enumerate(users):
-        win_rate = (user[5] / user[4] * 100) if user[4] > 0 else 0
-        rankings.append({
-            "rank": i + 1,
-            "username": user[1],
-            "elo_rating": round(user[3], 1),
-            "matches_played": user[4],
-            "matches_won": user[5],
-            "win_rate": round(win_rate, 1)
-        })
-    
-    return rankings
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM users 
+            WHERE is_admin = 0 
+            ORDER BY elo_rating DESC 
+            LIMIT 100
+        ''')
+        users = cursor.fetchall()
+        conn.close()
+        
+        rankings = []
+        for i, user in enumerate(users):
+            win_rate = (user[5] / user[4] * 100) if user[4] > 0 else 0
+            rankings.append({
+                "rank": i + 1,
+                "username": user[1],
+                "elo_rating": round(user[3], 1),
+                "matches_played": user[4],
+                "matches_won": user[5],
+                "win_rate": round(win_rate, 1)
+            })
+        
+        return rankings
+    except Exception as e:
+        print(f"Error in get_rankings: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @app.get("/api/matches/history")
 async def get_match_history(current_user: User = Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT * FROM matches 
+        SELECT * FROM matches
         WHERE (player1_id = ? OR player2_id = ?) AND status = 'confirmed'
-        ORDER BY confirmed_at DESC 
+        ORDER BY created_at DESC
         LIMIT 50
     ''', (current_user.id, current_user.id))
     matches = cursor.fetchall()
