@@ -9,17 +9,11 @@ const AdminDebugPanel = () => {
       setLogs((prev) => [...prev, { message }]);
     };
 
-    const handleGemini = (event) => {
-      const { error, suggestion } = event.detail || {};
-      const message = error?.stack || error?.message || String(error);
-      setLogs((prev) => [...prev, { message, suggestion }]);
-    };
+
 
     window.addEventListener('error', handleError);
-    window.addEventListener('gemini-suggestion', handleGemini);
     return () => {
       window.removeEventListener('error', handleError);
-      window.removeEventListener('gemini-suggestion', handleGemini);
     };
   }, []);
 

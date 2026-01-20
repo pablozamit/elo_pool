@@ -22,7 +22,7 @@ import AchievementSystem from './components/AchievementSystem';
 import AchievementNotification from './components/AchievementNotification';
 import PlayerProfile from './components/PlayerProfile';
 import AdminDebugPanel from './components/AdminDebugPanel';
-import { analyzeErrorWithGemini } from './utils/gemini.js';
+
 
 const ELO_WEIGHTS = {
   rey_mesa: 1.0,
@@ -76,14 +76,14 @@ const useEloPreview = ({ currentUser, opponent, score1, score2, matchType }) => 
     const fetchPreview = async () => {
       try {
         const winnerId = parseInt(score1, 10) > parseInt(score2, 10) ? currentUser.id : opponent.id;
-        
+
         const previewData = {
           player1_id: currentUser.id,
           player2_id: opponent.id,
           winner_id: winnerId,
           match_type: matchType,
         };
-        
+
         const response = await getEloPreview(previewData);
         setEloPreview(response.data);
       } catch (error) {
@@ -123,10 +123,10 @@ const AuthProvider = ({ children }) => {
 
       localStorage.setItem('token', access_token);
       localStorage.setItem('user', JSON.stringify(user_details));
-      
+
       setToken(access_token);
       setUser(user_details);
-      
+
       console.log('Login exitoso para', username);
       console.groupEnd();
       return { success: true };
@@ -142,7 +142,7 @@ const AuthProvider = ({ children }) => {
     console.log('Datos de registro:', { username, password });
     try {
       await apiRegister(username, password);
-      
+
       console.log('Registro exitoso para', username);
       console.groupEnd();
       return { success: true, message: '¡Registro exitoso! Por favor, inicia sesión.' };
@@ -250,7 +250,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative">
       <div className="app-background"></div>
-      
+
       <div className="premium-form w-full max-w-md fade-in-up">
         <div className="text-center mb-8">
           <div className="logo-container justify-center mb-6">
@@ -289,7 +289,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
               required
               className="form-input"
               value={formData.username}
-              onChange={(e) => setFormData({...formData, username: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               placeholder="Ingresa tu usuario"
             />
           </div>
@@ -303,7 +303,7 @@ const LoginForm = ({ initialMode = 'login', onSwitchMode, onLoginSuccess }) => {
               required
               className="form-input"
               value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               placeholder="Ingresa tu contraseña"
             />
           </div>
@@ -360,14 +360,7 @@ const Dashboard = () => {
       console.log('Rankings actualizados, total:', response.data.length);
     } catch (error) {
       console.error('Error fetching rankings:', error);
-      try {
-        const suggestion = await analyzeErrorWithGemini(error);
-        console.groupCollapsed('[🧠 Gemini Suggestion]');
-        console.log(suggestion);
-        console.groupEnd();
-      } catch {
-        console.warn('[Gemini] No se pudo generar sugerencia automática.');
-      }
+
       setRankings([]);
     }
     console.groupEnd();
@@ -385,14 +378,7 @@ const Dashboard = () => {
       console.log('Actualizados matches del usuario:', response.data.length);
     } catch (error) {
       console.error('Error fetching matches:', error);
-      try {
-        const suggestion = await analyzeErrorWithGemini(error);
-        console.groupCollapsed('[🧠 Gemini Suggestion]');
-        console.log(suggestion);
-        console.groupEnd();
-      } catch {
-        console.warn('[Gemini] No se pudo generar sugerencia automática.');
-      }
+
       setMatches([]);
     }
     console.groupEnd();
@@ -575,7 +561,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen relative">
       <div className="app-background"></div>
-      
+
       {achievementNotifications.length > 0 && (
         <AchievementNotification
           achievements={achievementNotifications}
@@ -602,7 +588,7 @@ const Dashboard = () => {
                 <p className="club-subtitle">{t('billiardClub')}</p>
               </div>
             </div>
-            
+
             {user && (
               <div className="hidden lg:block text-right">
                 <div className="text-sm text-gray-300">
@@ -696,8 +682,8 @@ const Dashboard = () => {
             }} />
           )}
           {user && activeTab === 'pending' && (
-            <PendingMatchesTab 
-              matches={pendingMatches} 
+            <PendingMatchesTab
+              matches={pendingMatches}
               onConfirm={confirmMatch}
               onReject={rejectMatch}
             />
@@ -904,7 +890,7 @@ const AdminTab = () => {
                 required
                 className="form-input"
                 value={createFormData.username}
-                onChange={(e) => setCreateFormData({...createFormData, username: e.target.value})}
+                onChange={(e) => setCreateFormData({ ...createFormData, username: e.target.value })}
                 placeholder="Usuario único"
               />
             </div>
@@ -915,7 +901,7 @@ const AdminTab = () => {
                 required
                 className="form-input"
                 value={createFormData.password}
-                onChange={(e) => setCreateFormData({...createFormData, password: e.target.value})}
+                onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
                 placeholder="Contraseña segura"
               />
             </div>
@@ -924,7 +910,7 @@ const AdminTab = () => {
                 <input
                   type="checkbox"
                   checked={createFormData.is_admin}
-                  onChange={(e) => setCreateFormData({...createFormData, is_admin: e.target.checked})}
+                  onChange={(e) => setCreateFormData({ ...createFormData, is_admin: e.target.checked })}
                   className="mr-2 accent-yellow-500"
                 />
                 Administrador
@@ -933,7 +919,7 @@ const AdminTab = () => {
                 <input
                   type="checkbox"
                   checked={createFormData.is_active}
-                  onChange={(e) => setCreateFormData({...createFormData, is_active: e.target.checked})}
+                  onChange={(e) => setCreateFormData({ ...createFormData, is_active: e.target.checked })}
                   className="mr-2 accent-yellow-500"
                 />
                 Usuario Activo
@@ -1015,7 +1001,7 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
             step="0.1"
             className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white"
             value={editData.elo_rating}
-            onChange={(e) => setEditData({...editData, elo_rating: parseFloat(e.target.value)})}
+            onChange={(e) => setEditData({ ...editData, elo_rating: parseFloat(e.target.value) })}
           />
         </td>
         <td>{user.matches_played}</td>
@@ -1024,7 +1010,7 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
           <input
             type="checkbox"
             checked={editData.is_admin}
-            onChange={(e) => setEditData({...editData, is_admin: e.target.checked})}
+            onChange={(e) => setEditData({ ...editData, is_admin: e.target.checked })}
             className="accent-yellow-500"
           />
         </td>
@@ -1032,7 +1018,7 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
           <input
             type="checkbox"
             checked={editData.is_active}
-            onChange={(e) => setEditData({...editData, is_active: e.target.checked})}
+            onChange={(e) => setEditData({ ...editData, is_active: e.target.checked })}
             className="accent-yellow-500"
           />
         </td>
@@ -1073,16 +1059,14 @@ const UserRow = ({ user, isEditing, onEdit, onCancelEdit, onUpdate, onDelete, lo
       <td>{user.matches_played}</td>
       <td>{user.matches_won}</td>
       <td>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          user.is_admin ? 'bg-purple-600 text-white' : 'bg-gray-600 text-gray-300'
-        }`}>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.is_admin ? 'bg-purple-600 text-white' : 'bg-gray-600 text-gray-300'
+          }`}>
           {user.is_admin ? 'Sí' : 'No'}
         </span>
       </td>
       <td>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          user.is_active ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-        }`}>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}>
           {user.is_active ? 'Activo' : 'Inactivo'}
         </span>
       </td>
@@ -1112,7 +1096,7 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
       <h2 className="premium-title text-3xl mb-2">Rankings Elite</h2>
       <p className="text-gray-400">Los mejores jugadores del club</p>
     </div>
-    
+
     <div className="overflow-x-auto">
       <table className="premium-table">
         <thead>
@@ -1138,8 +1122,8 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
                     {player.rank_change > 0
                       ? `▲${player.rank_change}`
                       : player.rank_change < 0
-                      ? `▼${Math.abs(player.rank_change)}`
-                      : '='}
+                        ? `▼${Math.abs(player.rank_change)}`
+                        : '='}
                   </span>
                 </div>
               </td>
@@ -1151,18 +1135,17 @@ const RankingsTab = ({ rankings, onPlayerClick }) => (
                     {player.elo_change > 0
                       ? `▲${player.elo_change}`
                       : player.elo_change < 0
-                      ? `▼${Math.abs(player.elo_change)}`
-                      : '='}
+                        ? `▼${Math.abs(player.elo_change)}`
+                        : '='}
                   </span>
                 </div>
               </td>
               <td>{player.matches_played}</td>
               <td className="text-green-400 font-semibold">{player.matches_won}</td>
               <td>
-                <span className={`font-semibold ${
-                  player.win_rate >= 70 ? 'text-green-400' : 
+                <span className={`font-semibold ${player.win_rate >= 70 ? 'text-green-400' :
                   player.win_rate >= 50 ? 'text-yellow-400' : 'text-red-400'
-                }`}>
+                  }`}>
                   {player.win_rate}%
                 </span>
               </td>
@@ -1286,11 +1269,11 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
       if (isNaN(myScore) || isNaN(oppScore)) {
         throw new Error('El resultado debe ser un número.');
       }
-      
+
       if (!opponent) {
         throw new Error('Oponente no encontrado o no seleccionado.');
       }
-      
+
       const winnerId = myScore > oppScore ? user.id : opponent.id;
 
       const matchPayload = {
@@ -1303,7 +1286,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
 
       console.log('Payload:', matchPayload);
       await submitMatch(matchPayload);
-      
+
       console.log('Resultado enviado con éxito');
       setSuccess('Resultado enviado correctamente. Esperando confirmación del oponente.');
       setFormData({
@@ -1335,7 +1318,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
 
   useEffect(() => {
     if (formData.opponent_username.length >= 2) {
-      const suggestions = allPlayers.filter(player => 
+      const suggestions = allPlayers.filter(player =>
         player.username.toLowerCase().includes(formData.opponent_username.toLowerCase()) &&
         player.username.toLowerCase() !== user.username.toLowerCase()
       );
@@ -1357,13 +1340,13 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
         <h2 className="premium-title text-3xl mb-2">Registrar Resultado</h2>
         <p className="text-gray-400">Sube el resultado de tu último partido</p>
       </div>
-      
+
       {error && (
         <div className="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
-      
+
       {success && (
         <div className="bg-green-900/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg">
           {success}
@@ -1412,7 +1395,7 @@ const SubmitMatchTab = ({ onMatchSubmitted, rankings }) => {
             required
             className="form-input"
             value={formData.match_type}
-            onChange={(e) => setFormData({...formData, match_type: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, match_type: e.target.value })}
           >
             {Object.entries(matchTypes).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
@@ -1538,7 +1521,7 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => {
         <h2 className="premium-title text-3xl mb-2">{t('pendingMatches')}</h2>
         <p className="text-gray-400">Confirma o rechaza los resultados enviados</p>
       </div>
-      
+
       {matches.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">✅</div>
@@ -1560,11 +1543,11 @@ const PendingMatchesTab = ({ matches, onConfirm, onReject }) => {
                     </span>
                   </div>
                   <div className="text-gray-300">
-                    <span className="font-medium">Tipo:</span> {match.match_type.replace('_', ' ')} • 
+                    <span className="font-medium">Tipo:</span> {match.match_type.replace('_', ' ')} •
                     <span className="font-medium ml-2">Resultado:</span> {match.result}
                   </div>
                   <div className="text-gray-400">
-                    <span className="font-medium">Ganador reportado:</span> 
+                    <span className="font-medium">Ganador reportado:</span>
                     <span className="text-green-400 ml-1">{match.winner_username}</span>
                   </div>
                   <div className="text-sm text-gray-500">
@@ -1609,7 +1592,7 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => {
         <h2 className="premium-title text-3xl mb-2">{t('matchHistory')}</h2>
         <p className="text-gray-400">Tu trayectoria en el club</p>
       </div>
-      
+
       {matches.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🎱</div>
@@ -1632,10 +1615,10 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => {
             <tbody>
               {matches.map((match) => {
                 const isWinner = match.winner_username === currentUser?.username;
-                const opponent = match.player1_username === currentUser?.username 
-                  ? match.player2_username 
+                const opponent = match.player1_username === currentUser?.username
+                  ? match.player2_username
                   : match.player1_username;
-                
+
                 return (
                   <tr key={match.id} className="interactive-element">
                     <td className="text-sm">
@@ -1649,11 +1632,10 @@ const HistoryTab = ({ matches, currentUser, onPlayerClick }) => {
                     <td className="text-sm capitalize">{match.match_type.replace('_', ' ')}</td>
                     <td className="font-medium">{match.result}</td>
                     <td>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        isWinner 
-                          ? 'bg-green-600 text-white' 
-                          : 'bg-red-600 text-white'
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${isWinner
+                        ? 'bg-green-600 text-white'
+                        : 'bg-red-600 text-white'
+                        }`}>
                         {isWinner ? '🏆 Victoria' : '💔 Derrota'}
                       </span>
                     </td>
