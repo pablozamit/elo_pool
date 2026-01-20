@@ -2,8 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 import os
-import logging
-from pathlib import Path
+import json
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict
 import uuid
@@ -11,28 +10,42 @@ from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from enum import Enum
-import sqlite3
-import json
-from contextlib import asynccontextmanager
-import tempfile
-import traceback
+import firebase_admin
+from firebase_admin import credentials, db
 
-# JWT Configuration
-JWT_SECRET = os.environ.get("JWT_SECRET", "your_super_secret_key_here_change_in_production")
+# --- Configuración Inicial ---
+JWT_SECRET = os.environ.get("JWT_SECRET", "tu_clave_secreta_aqui")
 JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
 
-# Database path
-DB_PATH = os.path.join(tempfile.gettempdir(), "billiard_club.db")
+# --- Firebase Init ---
+# Verificamos si ya está inicializada para evitar errores en hot-reload de desarrollo
+if not firebase_admin._apps:
+    firebase_cred_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+    if firebase_cred_json:
+        try:
+            cred_dict = json.loads(firebase_cred_json)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred, {
+                'databaseURL': 'https://elo-pool-default-rtdb.europe-west1.firebasedatabase.app/' 
+            })
+            print("🔥 Firebase inicializado con credenciales de entorno.")
+        except Exception as e:
+            print(f"❌ Error al inicializar Firebase: {e}")
+    else:
+        print("⚠️ ADVERTENCIA: Variable FIREBASE_SERVICE_ACCOUNT no encontrada.")
 
-# Match Types Enum
+def get_db_ref(path: str):
+    return db.reference(path)
+
+# --- Modelos y Enums ---
+
 class MatchType(str, Enum):
+    REY_MESA = "rey_mesa"
+    TORNEO = "torneo"
     LIGA_GRUPOS = "liga_grupos"
     LIGA_FINALES = "liga_finales"
-    TORNEO = "torneo"
-    REY_MESA = "rey_mesa"
 
-# ELO Weights for different match types
 ELO_WEIGHTS = {
     MatchType.REY_MESA: 1.0,
     MatchType.TORNEO: 1.5,
@@ -40,17 +53,15 @@ ELO_WEIGHTS = {
     MatchType.LIGA_FINALES: 2.5
 }
 
-# Models
 class User(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str
     username: str
-    password_hash: str
-    elo_rating: float = 1200.0
-    matches_played: int = 0
-    matches_won: int = 0
-    is_admin: bool = False
-    is_active: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    elo_rating: float
+    matches_played: int
+    matches_won: int
+    is_admin: bool
+    is_active: bool
+    created_at: str
 
 class UserCreate(BaseModel):
     username: str
@@ -74,39 +85,12 @@ class UserResponse(BaseModel):
     matches_won: int
     is_admin: bool
     is_active: bool
-    created_at: datetime
-
-class UserAdminCreate(UserCreate):
-    is_admin: Optional[bool] = False
-    is_active: Optional[bool] = True
-
-class UserUpdateAdmin(BaseModel):
-    elo_rating: Optional[float] = None
-    is_active: Optional[bool] = None
-    is_admin: Optional[bool] = None
-
-class Match(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    player1_id: str
-    player2_id: str
-    player1_username: str
-    player2_username: str
-    match_type: MatchType
-    result: str
-    winner_id: str
-    status: str = "pending"
-    player1_elo_before: float
-    player2_elo_before: float
-    player1_elo_after: Optional[float] = None
-    player2_elo_after: Optional[float] = None
-    submitted_by: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    confirmed_at: Optional[datetime] = None
+    created_at: str
 
 class MatchCreate(BaseModel):
     opponent_username: str
     match_type: MatchType
-    result: str
+    result: str # "5-3", "2-0", etc.
     won: bool
 
 class MatchResponse(BaseModel):
@@ -116,61 +100,17 @@ class MatchResponse(BaseModel):
     match_type: MatchType
     result: str
     winner_username: str
-    status: str
-    created_at: datetime
-    confirmed_at: Optional[datetime]
+    status: str # "pending", "confirmed", "rejected"
+    created_at: str
+    confirmed_at: Optional[str] = None
 
-# Database functions
-def init_db():
-    """Initialize SQLite database"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Create users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            elo_rating REAL DEFAULT 1200.0,
-            matches_played INTEGER DEFAULT 0,
-            matches_won INTEGER DEFAULT 0,
-            is_admin BOOLEAN DEFAULT FALSE,
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create matches table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS matches (
-            id TEXT PRIMARY KEY,
-            player1_id TEXT NOT NULL,
-            player2_id TEXT NOT NULL,
-            player1_username TEXT NOT NULL,
-            player2_username TEXT NOT NULL,
-            match_type TEXT NOT NULL,
-            result TEXT NOT NULL,
-            winner_id TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            player1_elo_before REAL NOT NULL,
-            player2_elo_before REAL NOT NULL,
-            player1_elo_after REAL,
-            player2_elo_after REAL,
-            submitted_by TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            confirmed_at TEXT
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
+class EloPreviewRequest(BaseModel):
+    player1_id: str
+    player2_id: str
+    winner_id: str
+    match_type: MatchType
 
-def get_db():
-    """Get database connection"""
-    return sqlite3.connect(DB_PATH)
-
-# Utility functions
+# --- Utilidades ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
@@ -179,69 +119,50 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return pwd_context.verify(password, hashed)
 
-def create_jwt_token(user_id: str, username: str) -> str:
+def create_jwt_token(user_id: str, username: str, is_admin: bool) -> str:
     payload = {
         "user_id": user_id,
         "username": username,
+        "is_admin": is_admin,
         "exp": datetime.utcnow() + timedelta(days=7)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def verify_jwt_token(token: str) -> dict:
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
+        user_id = payload.get("user_id")
+        
+        user_ref = get_db_ref(f'users/{user_id}')
+        user_data = user_ref.get()
+        
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        return user_data # Retorna diccionario raw de firebase
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    payload = verify_jwt_token(token)
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (payload["user_id"],))
-    user_data = cursor.fetchone()
-    conn.close()
-    
-    if not user_data:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    return User(
-        id=user_data[0],
-        username=user_data[1],
-        password_hash=user_data[2],
-        elo_rating=user_data[3],
-        matches_played=user_data[4],
-        matches_won=user_data[5],
-        is_admin=bool(user_data[6]),
-        is_active=bool(user_data[7]),
-        created_at=datetime.fromisoformat(user_data[8])
-    )
-
-def get_current_admin_user(current_user: User = Depends(get_current_user)):
-    if not current_user.is_admin:
+def get_current_admin_user(current_user: dict = Depends(get_current_user)):
+    if not current_user.get('is_admin', False):
         raise HTTPException(status_code=403, detail="Forbidden: User is not an admin")
     return current_user
 
-def calculate_elo_change(winner_elo: float, loser_elo: float, match_type: MatchType) -> tuple:
-    """Calculate ELO change for both players"""
+def calculate_new_elos(winner_elo, loser_elo, match_type: MatchType):
     K = 32 * ELO_WEIGHTS[match_type]
     
-    expected_winner = 1 / (1 + 10**((loser_elo - winner_elo) / 400))
-    expected_loser = 1 / (1 + 10**((winner_elo - loser_elo) / 400))
+    expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
+    expected_loser = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
     
     new_winner_elo = winner_elo + K * (1 - expected_winner)
     new_loser_elo = loser_elo + K * (0 - expected_loser)
     
     return new_winner_elo, new_loser_elo
 
-# Create FastAPI app
+# --- App FastAPI ---
 app = FastAPI()
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -250,480 +171,307 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database on startup
-@app.on_event("startup")
-async def startup_event():
-    init_db()
-    
-    # Create admin user if it doesn't exist
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ?", ("admin",))
-    admin_user = cursor.fetchone()
-    
-    if not admin_user:
-        admin_id = str(uuid.uuid4())
-        cursor.execute('''
-            INSERT INTO users (id, username, password_hash, is_admin, is_active)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (admin_id, "admin", hash_password("adminpassword"), True, True))
-        conn.commit()
-        print("✅ Default admin user 'admin' created with password 'adminpassword'.")
-    else:
-        print("✅ Admin user 'admin' already exists.")
-    
-    conn.close()
+# --- Routes ---
 
-# Routes
+@app.get("/")
+def root():
+    return {"message": "La Catrina Pool Club API (Firebase) is running!"}
+
 @app.post("/api/register", response_model=UserResponse)
-async def register(user_data: UserCreate):
-    conn = get_db()
-    cursor = conn.cursor()
+def register(user_data: UserCreate):
+    # En modo "solo invitación", este endpoint podría estar deshabilitado
+    # O restringido a admins. Por ahora lo dejaré abierto para que puedas
+    # crear el primer admin, y luego puedes protegerlo.
     
-    # Check if username already exists
-    cursor.execute("SELECT * FROM users WHERE username = ?", (user_data.username,))
-    existing_user = cursor.fetchone()
+    users_ref = get_db_ref('users')
     
-    if existing_user:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Create new user
+    # Check if username exists (ineficiente en Firebase sin index, pero ok para pocos users)
+    all_users = users_ref.get() or {}
+    for uid, u in all_users.items():
+        if u.get('username').lower() == user_data.username.lower():
+             raise HTTPException(status_code=400, detail="Username already exists")
+
     user_id = str(uuid.uuid4())
-    cursor.execute('''
-        INSERT INTO users (id, username, password_hash)
-        VALUES (?, ?, ?)
-    ''', (user_id, user_data.username, hash_password(user_data.password)))
+    new_user = {
+        "id": user_id,
+        "username": user_data.username,
+        "password_hash": hash_password(user_data.password),
+        "elo_rating": 1200.0,
+        "matches_played": 0,
+        "matches_won": 0,
+        "is_admin": False, # Default false
+        "is_active": True,
+        "created_at": datetime.utcnow().isoformat()
+    }
     
-    conn.commit()
+    # Guardar en Firebase
+    users_ref.child(user_id).set(new_user)
     
-    # Get the created user
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    user_data_db = cursor.fetchone()
-    conn.close()
-    
-    return UserResponse(
-        id=user_data_db[0],
-        username=user_data_db[1],
-        elo_rating=user_data_db[3],
-        matches_played=user_data_db[4],
-        matches_won=user_data_db[5],
-        is_admin=bool(user_data_db[6]),
-        is_active=bool(user_data_db[7]),
-        created_at=datetime.fromisoformat(user_data_db[8])
-    )
+    return new_user
 
 @app.post("/api/login")
-async def login(login_data: UserLogin):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ?", (login_data.username,))
-    user_data = cursor.fetchone()
-    conn.close()
+def login(login_data: UserLogin):
+    users_ref = get_db_ref('users')
+    all_users = users_ref.get() or {}
     
-    if not user_data or not verify_password(login_data.password, user_data[2]):
+    user_found = None
+    for uid, u in all_users.items():
+        if u.get('username').lower() == login_data.username.lower():
+            user_found = u
+            break
+            
+    if not user_found or not verify_password(login_data.password, user_found['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    token = create_jwt_token(user_data[0], user_data[1])
+        
+    token = create_jwt_token(user_found['id'], user_found['username'], user_found.get('is_admin', False))
     
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserResponse(
-            id=user_data[0],
-            username=user_data[1],
-            elo_rating=user_data[3],
-            matches_played=user_data[4],
-            matches_won=user_data[5],
-            is_admin=bool(user_data[6]),
-            is_active=bool(user_data[7]),
-            created_at=datetime.fromisoformat(user_data[8])
-        )
+        "user": user_found
     }
 
-@app.get("/api/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    return UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        elo_rating=current_user.elo_rating,
-        matches_played=current_user.matches_played,
-        matches_won=current_user.matches_won,
-        is_admin=current_user.is_admin,
-        is_active=current_user.is_active,
-        created_at=current_user.created_at
-    )
+@app.get("/api/rankings")
+def get_rankings():
+    users_ref = get_db_ref('users')
+    all_users = users_ref.get()
+    
+    if not all_users:
+        return []
+        
+    # Convertir dict de firebase a lista
+    users_list = list(all_users.values())
+    
+    # Filtrar solo activos y no admins (opcional, si quieres ver admins en ranking quita esto)
+    players = [u for u in users_list if u.get('is_active') and not u.get('is_admin')]
+    
+    # Ordenar por ELO
+    players.sort(key=lambda x: x.get('elo_rating', 1200), reverse=True)
+    
+    rankings = []
+    for i, user in enumerate(players):
+        matches = user.get('matches_played', 0)
+        wins = user.get('matches_won', 0)
+        win_rate = (wins / matches * 100) if matches > 0 else 0
+        
+        rankings.append({
+            "rank": i + 1,
+            "username": user.get('username'),
+            "elo_rating": round(user.get('elo_rating', 1200), 1),
+            "matches_played": matches,
+            "matches_won": wins,
+            "win_rate": round(win_rate, 1)
+        })
+        
+    return rankings
 
 @app.post("/api/matches", response_model=MatchResponse)
-async def create_match(match_data: MatchCreate, current_user: User = Depends(get_current_user)):
-    conn = get_db()
-    cursor = conn.cursor()
+def create_match(match_data: MatchCreate, current_user: dict = Depends(get_current_user)):
+    # Buscar oponente
+    users_ref = get_db_ref('users')
+    all_users = users_ref.get() or {}
     
-    # Find opponent
-    cursor.execute("SELECT * FROM users WHERE username = ?", (match_data.opponent_username,))
-    opponent_data = cursor.fetchone()
-    
-    if not opponent_data:
-        conn.close()
+    opponent = None
+    for uid, u in all_users.items():
+        if u.get('username').lower() == match_data.opponent_username.lower():
+            opponent = u
+            break
+            
+    if not opponent:
         raise HTTPException(status_code=404, detail="Opponent not found")
-    
-    if opponent_data[0] == current_user.id:
-        conn.close()
+        
+    if opponent['id'] == current_user['id']:
         raise HTTPException(status_code=400, detail="Cannot play against yourself")
-    
-    # Determine winner
-    if match_data.won:
-        winner_id = current_user.id
-        winner_username = current_user.username
-    else:
-        winner_id = opponent_data[0]
-        winner_username = opponent_data[1]
-    
-    # Create match
+
     match_id = str(uuid.uuid4())
-    cursor.execute('''
-        INSERT INTO matches (
-            id, player1_id, player2_id, player1_username, player2_username,
-            match_type, result, winner_id, submitted_by, player1_elo_before, player2_elo_before
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        match_id, current_user.id, opponent_data[0], current_user.username, opponent_data[1],
-        match_data.match_type.value, match_data.result, winner_id, current_user.id,
-        current_user.elo_rating, opponent_data[3]
-    ))
     
-    conn.commit()
-    conn.close()
+    winner_id = current_user['id'] if match_data.won else opponent['id']
+    winner_username = current_user['username'] if match_data.won else opponent['username']
+
+    new_match = {
+        "id": match_id,
+        "player1_id": current_user['id'],
+        "player2_id": opponent['id'],
+        "player1_username": current_user['username'],
+        "player2_username": opponent['username'],
+        "match_type": match_data.match_type,
+        "result": match_data.result,
+        "winner_id": winner_id,
+        "winner_username": winner_username,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        # Guardamos ELO actual para historial
+        "player1_elo_before": current_user.get('elo_rating', 1200),
+        "player2_elo_before": opponent.get('elo_rating', 1200)
+    }
     
-    return MatchResponse(
-        id=match_id,
-        player1_username=current_user.username,
-        player2_username=opponent_data[1],
-        match_type=match_data.match_type,
-        result=match_data.result,
-        winner_username=winner_username,
-        status="pending",
-        created_at=datetime.utcnow(),
-        confirmed_at=None
-    )
+    # Guardar match en 'matches'
+    get_db_ref(f'matches/{match_id}').set(new_match)
+    
+    return new_match
 
 @app.get("/api/matches/pending")
-async def get_pending_matches(current_user: User = Depends(get_current_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    if current_user.is_admin:
-        cursor.execute('''
-            SELECT * FROM matches
-            WHERE status = 'pending'
-            ORDER BY created_at DESC
-        ''')
-    else:
-        cursor.execute('''
-            SELECT * FROM matches
-            WHERE player2_id = ? AND status = 'pending'
-            ORDER BY created_at DESC
-        ''', (current_user.id,))
-    matches = cursor.fetchall()
-    conn.close()
+def get_pending_matches(current_user: dict = Depends(get_current_user)):
+    matches_ref = get_db_ref('matches')
+    # Query compleja en firebase real time es dificil, traemos todo y filtramos en python
+    # Para producción con miles de matches esto se debe optimizar con índices o firestore
+    all_matches = matches_ref.get() or {}
     
-    result = []
-    for match in matches:
-        result.append(MatchResponse(
-            id=match[0],
-            player1_username=match[3],
-            player2_username=match[4],
-            match_type=MatchType(match[5]),
-            result=match[6],
-            winner_username=match[3] if match[7] == match[1] else match[4],
-            status=match[8],
-            created_at=datetime.fromisoformat(match[14]),
-            confirmed_at=datetime.fromisoformat(match[15]) if match[15] else None
-        ))
-    
-    return result
+    pending = []
+    for mid, m in all_matches.items():
+        if m.get('status') == 'pending':
+            # Si soy admin veo todos, si no, solo los que me toca confirmar (donde soy player2 o el que no creó el match)
+            # En este diseño simple, asumimos que player1 siempre CREA el match.
+            # Así que player2 debe confirmar.
+            if current_user.get('is_admin') or m.get('player2_id') == current_user['id']:
+                 pending.append(m)
+                 
+    # Ordenar por fecha desc
+    pending.sort(key=lambda x: x.get('created_at'), reverse=True)
+    return pending
 
 @app.post("/api/matches/{match_id}/confirm")
-async def confirm_match(match_id: str, current_user: User = Depends(get_current_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Get match
-    cursor.execute("SELECT * FROM matches WHERE id = ?", (match_id,))
-    match_data = cursor.fetchone()
+def confirm_match(match_id: str, current_user: dict = Depends(get_current_user)):
+    match_ref = get_db_ref(f'matches/{match_id}')
+    match_data = match_ref.get()
     
     if not match_data:
-        conn.close()
         raise HTTPException(status_code=404, detail="Match not found")
+        
+    # Verificar permisos: Solo el oponente puede confirmar (o un admin)
+    # Asumimos que quien creó el match (player1) no puede auto-confirmarse
+    if not current_user.get('is_admin') and match_data['player2_id'] != current_user['id']:
+        raise HTTPException(status_code=403, detail="Not authorized to confirm")
+        
+    if match_data['status'] != 'pending':
+        return {"message": "Match already processed"}
+
+    # --- CALCULAR ELO ---
+    p1_ref = get_db_ref(f"users/{match_data['player1_id']}")
+    p2_ref = get_db_ref(f"users/{match_data['player2_id']}")
     
-    if match_data[2] != current_user.id:  # player2_id
-        conn.close()
-        raise HTTPException(status_code=403, detail="Not authorized to confirm this match")
+    p1 = p1_ref.get()
+    p2 = p2_ref.get()
     
-    if match_data[8] != "pending":  # status
-        conn.close()
-        raise HTTPException(status_code=400, detail="Match already processed")
+    elo1 = p1.get('elo_rating', 1200.0)
+    elo2 = p2.get('elo_rating', 1200.0)
     
-    # Calculate ELO changes
-    winner_elo = match_data[9] if match_data[7] == match_data[1] else match_data[10]  # player1_elo_before or player2_elo_before
-    loser_elo = match_data[10] if match_data[7] == match_data[1] else match_data[9]
+    winner_elo = elo1 if match_data['winner_id'] == p1['id'] else elo2
+    loser_elo = elo2 if match_data['winner_id'] == p1['id'] else elo1
     
-    new_winner_elo, new_loser_elo = calculate_elo_change(winner_elo, loser_elo, MatchType(match_data[5]))
+    new_w, new_l = calculate_new_elos(winner_elo, loser_elo, MatchType(match_data['match_type']))
     
-    # Update match
-    if match_data[7] == match_data[1]:  # winner_id == player1_id
-        player1_elo_after = new_winner_elo
-        player2_elo_after = new_loser_elo
+    if match_data['winner_id'] == p1['id']:
+        elo1_new = new_w
+        elo2_new = new_l
     else:
-        player1_elo_after = new_loser_elo
-        player2_elo_after = new_winner_elo
+        elo1_new = new_l
+        elo2_new = new_w
+        
+    # Update Users
+    p1['elo_rating'] = elo1_new
+    p1['matches_played'] = p1.get('matches_played', 0) + 1
+    if match_data['winner_id'] == p1['id']:
+        p1['matches_won'] = p1.get('matches_won', 0) + 1
+        
+    p2['elo_rating'] = elo2_new
+    p2['matches_played'] = p2.get('matches_played', 0) + 1
+    if match_data['winner_id'] == p2['id']:
+        p2['matches_won'] = p2.get('matches_won', 0) + 1
+        
+    p1_ref.update(p1)
+    p2_ref.update(p2)
     
-    cursor.execute('''
-        UPDATE matches 
-        SET status = 'confirmed', confirmed_at = ?, player1_elo_after = ?, player2_elo_after = ?
-        WHERE id = ?
-    ''', (datetime.utcnow().isoformat(), player1_elo_after, player2_elo_after, match_id))
+    # Update Match
+    match_ref.update({
+        "status": "confirmed",
+        "confirmed_at": datetime.utcnow().isoformat(),
+        "player1_elo_after": elo1_new,
+        "player2_elo_after": elo2_new
+    })
     
-    # Update player ELO ratings and stats
-    cursor.execute('''
-        UPDATE users 
-        SET elo_rating = ?, matches_played = matches_played + 1, 
-            matches_won = matches_won + ?
-        WHERE id = ?
-    ''', (player1_elo_after, 1 if match_data[7] == match_data[1] else 0, match_data[1]))
-    
-    cursor.execute('''
-        UPDATE users 
-        SET elo_rating = ?, matches_played = matches_played + 1, 
-            matches_won = matches_won + ?
-        WHERE id = ?
-    ''', (player2_elo_after, 1 if match_data[7] == match_data[2] else 0, match_data[2]))
-    
-    conn.commit()
-    conn.close()
-    
-    return {"message": "Match confirmed successfully"}
+    return {"message": "Match confirmed and ELO updated"}
 
 @app.post("/api/matches/{match_id}/reject")
-async def reject_match(match_id: str, current_user: User = Depends(get_current_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM matches WHERE id = ?", (match_id,))
-    match_data = cursor.fetchone()
+def reject_match(match_id: str, current_user: dict = Depends(get_current_user)):
+    match_ref = get_db_ref(f'matches/{match_id}')
+    match_data = match_ref.get()
     
     if not match_data:
-        conn.close()
         raise HTTPException(status_code=404, detail="Match not found")
-    
-    if match_data[2] != current_user.id:
-        conn.close()
-        raise HTTPException(status_code=403, detail="Not authorized to reject this match")
-    
-    if match_data[8] != "pending":
-        conn.close()
-        raise HTTPException(status_code=400, detail="Match already processed")
-    
-    cursor.execute("UPDATE matches SET status = 'rejected', confirmed_at = ? WHERE id = ?", 
-                   (datetime.utcnow().isoformat(), match_id))
-    conn.commit()
-    conn.close()
-    
-    return {"message": "Match rejected successfully"}
-
-@app.get("/api/rankings")
-async def get_rankings():
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM users 
-            WHERE is_admin = 0 
-            ORDER BY elo_rating DESC 
-            LIMIT 100
-        ''')
-        users = cursor.fetchall()
-        conn.close()
         
-        rankings = []
-        for i, user in enumerate(users):
-            win_rate = (user[5] / user[4] * 100) if user[4] > 0 else 0
-            rankings.append({
-                "rank": i + 1,
-                "username": user[1],
-                "elo_rating": round(user[3], 1),
-                "matches_played": user[4],
-                "matches_won": user[5],
-                "win_rate": round(win_rate, 1)
-            })
+    if not current_user.get('is_admin') and match_data['player2_id'] != current_user['id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
         
-        return rankings
-    except Exception as e:
-        print(f"Error in get_rankings: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    match_ref.update({
+        "status": "rejected",
+        "confirmed_at": datetime.utcnow().isoformat()
+    })
+    return {"message": "Match rejected"}
 
 @app.get("/api/matches/history")
-async def get_match_history(current_user: User = Depends(get_current_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT * FROM matches
-        WHERE (player1_id = ? OR player2_id = ?) AND status = 'confirmed'
-        ORDER BY created_at DESC
-        LIMIT 50
-    ''', (current_user.id, current_user.id))
-    matches = cursor.fetchall()
-    conn.close()
+def get_match_history(current_user: dict = Depends(get_current_user)):
+    matches_ref = get_db_ref('matches')
+    all_matches = matches_ref.get() or {}
     
-    result = []
-    for match in matches:
-        result.append(MatchResponse(
-            id=match[0],
-            player1_username=match[3],
-            player2_username=match[4],
-            match_type=MatchType(match[5]),
-            result=match[6],
-            winner_username=match[3] if match[7] == match[1] else match[4],
-            status=match[8],
-            created_at=datetime.fromisoformat(match[14]),
-            confirmed_at=datetime.fromisoformat(match[15]) if match[15] else None
-        ))
-    
-    return result
+    history = []
+    for mid, m in all_matches.items():
+        if m.get('status') == 'confirmed':
+            if m['player1_id'] == current_user['id'] or m['player2_id'] == current_user['id']:
+                history.append(m)
+                
+    history.sort(key=lambda x: x.get('confirmed_at'), reverse=True)
+    return history
 
-@app.get("/api/users/search")
-async def search_users(query: str, current_user: User = Depends(get_current_user)):
-    if len(query) < 2:
-        return []
+@app.post("/api/elo/preview")
+def preview_elo(request: EloPreviewRequest):
+    p1_ref = get_db_ref(f"users/{request.player1_id}")
+    p2_ref = get_db_ref(f"users/{request.player2_id}")
     
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT id, username, elo_rating FROM users 
-        WHERE username LIKE ? AND id != ?
-        LIMIT 10
-    ''', (f"%{query}%", current_user.id))
-    users = cursor.fetchall()
-    conn.close()
+    p1 = p1_ref.get()
+    p2 = p2_ref.get()
     
-    return [{"id": user[0], "username": user[1], "elo_rating": user[2]} for user in users]
-
-# Admin endpoints
-@app.post("/api/admin/users", response_model=UserResponse, tags=["Admin"])
-async def admin_create_user(user_data: UserAdminCreate, admin_user: User = Depends(get_current_admin_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Check if username already exists
-    cursor.execute("SELECT * FROM users WHERE username = ?", (user_data.username,))
-    existing_user = cursor.fetchone()
-    
-    if existing_user:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    user_id = str(uuid.uuid4())
-    cursor.execute('''
-        INSERT INTO users (id, username, password_hash, is_admin, is_active)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (user_id, user_data.username, hash_password(user_data.password), 
-          user_data.is_admin, user_data.is_active))
-    
-    conn.commit()
-    
-    # Get the created user
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    user_data_db = cursor.fetchone()
-    conn.close()
-    
-    return UserResponse(
-        id=user_data_db[0],
-        username=user_data_db[1],
-        elo_rating=user_data_db[3],
-        matches_played=user_data_db[4],
-        matches_won=user_data_db[5],
-        is_admin=bool(user_data_db[6]),
-        is_active=bool(user_data_db[7]),
-        created_at=datetime.fromisoformat(user_data_db[8])
-    )
-
-@app.get("/api/admin/users", response_model=List[UserResponse], tags=["Admin"])
-async def admin_get_all_users(admin_user: User = Depends(get_current_admin_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
-    users = cursor.fetchall()
-    conn.close()
-    
-    return [UserResponse(
-        id=user[0],
-        username=user[1],
-        elo_rating=user[3],
-        matches_played=user[4],
-        matches_won=user[5],
-        is_admin=bool(user[6]),
-        is_active=bool(user[7]),
-        created_at=datetime.fromisoformat(user[8])
-    ) for user in users]
-
-@app.put("/api/admin/users/{user_id}", response_model=UserResponse, tags=["Admin"])
-async def admin_update_user(user_id: str, user_update_data: UserUpdateAdmin, admin_user: User = Depends(get_current_admin_user)):
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    existing_user = cursor.fetchone()
-    
-    if not existing_user:
-        conn.close()
+    if not p1 or not p2:
         raise HTTPException(status_code=404, detail="User not found")
-
-    update_data = user_update_data.dict(exclude_unset=True)
+        
+    elo1 = p1.get('elo_rating', 1200.0)
+    elo2 = p2.get('elo_rating', 1200.0)
     
-    if update_data:
-        set_clause = ", ".join([f"{key} = ?" for key in update_data.keys()])
-        values = list(update_data.values()) + [user_id]
-        cursor.execute(f"UPDATE users SET {set_clause} WHERE id = ?", values)
-        conn.commit()
-
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    updated_user = cursor.fetchone()
-    conn.close()
+    winner_elo = elo1 if request.winner_id == request.player1_id else elo2
+    loser_elo = elo2 if request.winner_id == request.player1_id else elo1
     
-    return UserResponse(
-        id=updated_user[0],
-        username=updated_user[1],
-        elo_rating=updated_user[3],
-        matches_played=updated_user[4],
-        matches_won=updated_user[5],
-        is_admin=bool(updated_user[6]),
-        is_active=bool(updated_user[7]),
-        created_at=datetime.fromisoformat(updated_user[8])
-    )
-
-@app.delete("/api/admin/users/{user_id}", response_model=Dict[str, str], tags=["Admin"])
-async def admin_delete_user(user_id: str, admin_user: User = Depends(get_current_admin_user)):
-    conn = get_db()
-    cursor = conn.cursor()
+    new_w, new_l = calculate_new_elos(winner_elo, loser_elo, request.match_type)
     
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    existing_user = cursor.fetchone()
+    delta_w = new_w - winner_elo
+    delta_l = new_l - loser_elo # será negativo
     
-    if not existing_user:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    if request.winner_id == request.player1_id:
+        return {
+            "user": {"from": round(elo1), "to": round(new_w), "delta": round(delta_w)},
+            "opponent": {"from": round(elo2), "to": round(new_l), "delta": round(delta_l)}
+        }
+    else:
+        return {
+            "user": {"from": round(elo1), "to": round(new_l), "delta": round(delta_l)},
+            "opponent": {"from": round(elo2), "to": round(new_w), "delta": round(delta_w)}
+        }
 
-    cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-    
-    return {"message": "User deleted successfully"}
+@app.get("/api/users/me")
+def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    return user_to_response(current_user)
 
-# Health check
-@app.get("/")
-async def root():
-    return {"message": "La Catrina Pool Club API is running!"}
+def user_to_response(user_data):
+    return {
+        "id": user_data['id'],
+        "username": user_data['username'],
+        "elo_rating": user_data.get('elo_rating', 1200.0),
+        "matches_played": user_data.get('matches_played', 0),
+        "matches_won": user_data.get('matches_won', 0),
+        "is_admin": user_data.get('is_admin', False),
+        "is_active": user_data.get('is_active', True),
+        "created_at": user_data.get('created_at', "")
+    }
 
-# For Vercel
+# Para Vercel
 def handler(request):
     return app(request)
