@@ -177,6 +177,24 @@ app.add_middleware(
 def root():
     return {"message": "La Catrina Pool Club API (Firebase) is running!"}
 
+@app.get("/api/debug")
+def debug_firebase():
+    status = {
+        "firebase_initialized": bool(firebase_admin._apps),
+        "env_var_present": bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT")),
+        "db_url": 'https://elo-pool-default-rtdb.europe-west1.firebasedatabase.app/' 
+    }
+    
+    # Try to write and delete a timestamp to verify DB permissions
+    if status["firebase_initialized"]:
+        try:
+            get_db_ref('debug_ping').set(datetime.utcnow().isoformat())
+            status["write_test"] = "Success"
+        except Exception as e:
+            status["write_test"] = f"Failed: {str(e)}"
+            
+    return status
+
 @app.post("/api/register", response_model=UserResponse)
 def register(user_data: UserCreate):
     # En modo "solo invitación", este endpoint podría estar deshabilitado
